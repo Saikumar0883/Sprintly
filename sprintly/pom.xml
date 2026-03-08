@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.4</version>
+    <relativePath />
+  </parent>
+
+  <groupId>com.sprintly</groupId>
+  <artifactId>sprintly-parent</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>Sprintly :: Parent</name>
+  <description>Real-Time Collaborative Task Management System</description>
+
+  <modules>
+    <module>sprintly-common</module>
+    <module>sprintly-auth</module>
+    <module>sprintly-user</module>
+    <module>sprintly-task</module>
+    <module>sprintly-notification</module>
+    <module>sprintly-gateway</module>
+  </modules>
+
+  <properties>
+    <java.version>17</java.version>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jjwt.version>0.12.3</jjwt.version>
+    <springdoc.version>2.3.0</springdoc.version>
+    <mapstruct.version>1.5.5.Final</mapstruct.version>
+    <lombok.version>1.18.30</lombok.version>
+    <testcontainers.version>1.19.6</testcontainers.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Internal Modules -->
+      <dependency>
+        <groupId>com.sprintly</groupId>
+        <artifactId>sprintly-common</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.sprintly</groupId>
+        <artifactId>sprintly-auth</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.sprintly</groupId>
+        <artifactId>sprintly-user</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.sprintly</groupId>
+        <artifactId>sprintly-task</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.sprintly</groupId>
+        <artifactId>sprintly-notification</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- JWT -->
+      <dependency>
+        <groupId>io.jsonwebtoken</groupId>
+        <artifactId>jjwt-api</artifactId>
+        <version>${jjwt.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.jsonwebtoken</groupId>
+        <artifactId>jjwt-impl</artifactId>
+        <version>${jjwt.version}</version>
+        <scope>runtime</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.jsonwebtoken</groupId>
+        <artifactId>jjwt-jackson</artifactId>
+        <version>${jjwt.version}</version>
+        <scope>runtime</scope>
+      </dependency>
+
+      <!-- SpringDoc OpenAPI -->
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>${springdoc.version}</version>
+      </dependency>
+
+      <!-- MapStruct -->
+      <dependency>
+        <groupId>org.mapstruct</groupId>
+        <artifactId>mapstruct</artifactId>
+        <version>${mapstruct.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mapstruct</groupId>
+        <artifactId>mapstruct-processor</artifactId>
+        <version>${mapstruct.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <!-- Testcontainers BOM -->
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <configuration>
+            <excludes>
+              <exclude>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+              </exclude>
+            </excludes>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <source>17</source>
+            <target>17</target>
+            <annotationProcessorPaths>
+              <path>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+              </path>
+              <path>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+              </path>
+            </annotationProcessorPaths>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+</project>

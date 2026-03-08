@@ -1,0 +1,5 @@
+/home/hexacluster/Downloads/taskflow-phase1-phase2/taskflow/taskflow-gateway/src/main/java/com/taskflow/gateway/exception/GlobalExceptionHandler.java
+/home/hexacluster/Downloads/taskflow-phase1-phase2/taskflow/taskflow-gateway/src/main/java/com/taskflow/gateway/config/SwaggerConfig.java
+/home/hexacluster/Downloads/taskflow-phase1-phase2/taskflow/taskflow-gateway/src/main/java/com/taskflow/gateway/config/CorsConfig.java
+/home/hexacluster/Downloads/taskflow-phase1-phase2/taskflow/taskflow-gateway/src/main/java/com/taskflow/gateway/filter/RequestLoggingFilter.java
+/home/hexacluster/Downloads/taskflow-phase1-phase2/taskflow/taskflow-gateway/src/main/java/com/taskflow/gateway/GatewayApplication.java

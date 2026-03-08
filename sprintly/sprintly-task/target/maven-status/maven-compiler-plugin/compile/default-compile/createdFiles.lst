@@ -1,0 +1,13 @@
+com/taskflow/task/dto/CreateTaskRequest$CreateTaskRequestBuilder.class
+com/taskflow/task/service/TaskService.class
+com/taskflow/task/repository/TaskRepository.class
+com/taskflow/task/entity/Task$TaskBuilder.class
+com/taskflow/task/dto/TaskDTO$TaskDTOBuilder.class
+com/taskflow/task/mapper/TaskMapper.class
+com/taskflow/task/entity/Task.class
+com/taskflow/task/dto/UpdateTaskRequest.class
+com/taskflow/task/repository/JdbcTaskRepository.class
+com/taskflow/task/dto/UpdateTaskRequest$UpdateTaskRequestBuilder.class
+com/taskflow/task/dto/CreateTaskRequest.class
+com/taskflow/task/dto/TaskDTO.class
+com/taskflow/task/controller/TaskController.class
