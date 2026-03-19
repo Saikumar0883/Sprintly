@@ -16,12 +16,12 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.taskflow</groupId>
-      <artifactId>taskflow-common</artifactId>
+      <groupId>com.sprintly</groupId>
+      <artifactId>sprintly-common</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.taskflow</groupId>
-      <artifactId>taskflow-user</artifactId>
+      <groupId>com.sprintly</groupId>
+      <artifactId>sprintly-user</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

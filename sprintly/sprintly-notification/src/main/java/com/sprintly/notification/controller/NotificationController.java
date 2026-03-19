@@ -1,6 +1,7 @@
 package com.sprintly.notification.controller;
 
 import com.sprintly.notification.dto.NotificationDTO;
+import com.sprintly.notification.mapper.NotificationMapper;
 import com.sprintly.notification.service.NotificationService;
 import com.sprintly.common.dto.ApiResponse;
 import com.sprintly.user.repository.UserRepository;
@@ -36,9 +37,9 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<List<NotificationDTO>>> getMyNotifications(Principal principal) {
         Long userId = getCurrentUserId(principal);
         List<NotificationDTO> notifications = notificationService.getUserNotifications(userId)
-            .stream()
-            .map(com.taskflow.notification.mapper.NotificationMapper::toDto)
-            .collect(Collectors.toList());
+                .stream()
+                .map(NotificationMapper::toDto)
+                .collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.success("Notifications retrieved successfully", notifications));
     }
@@ -51,9 +52,9 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<List<NotificationDTO>>> getUnreadNotifications(Principal principal) {
         Long userId = getCurrentUserId(principal);
         List<NotificationDTO> notifications = notificationService.getUnreadNotifications(userId)
-            .stream()
-            .map(com.taskflow.notification.mapper.NotificationMapper::toDto)
-            .collect(Collectors.toList());
+                .stream()
+                .map(NotificationMapper::toDto)
+                .collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.success("Unread notifications retrieved successfully", notifications));
     }
@@ -129,7 +130,7 @@ public class NotificationController {
     private Long getCurrentUserId(Principal principal) {
         String userEmail = principal.getName();
         return userRepository.findByEmail(userEmail)
-            .map(user -> user.getId())
-            .orElseThrow(() -> new RuntimeException("Authenticated user not found: " + userEmail));
+                .map(user -> user.getId())
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found: " + userEmail));
     }
 }

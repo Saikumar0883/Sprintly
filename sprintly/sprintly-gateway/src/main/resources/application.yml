@@ -7,7 +7,7 @@ spring:
 
   # ── Database ──────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://localhost:5432/taskflow_db
+    url: jdbc:postgresql://localhost:5432/sprintly_db
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
