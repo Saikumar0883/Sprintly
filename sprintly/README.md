@@ -184,15 +184,25 @@ mvn spring-boot:run
 ```
 
 ### 💬 Interactive CLI REPL
-The `sprintly-cli` now features an interactive REPL mode (similar to Claude Code CLI) for enhanced user experience.
+The `sprintly-cli` now features an interactive REPL mode (similar to Claude Code CLI) for enhanced user experience. 
+**New!** All commands now support step-by-step interactive prompting for missing arguments.
+
 ```bash
 # Run the CLI interactively
 java -jar sprintly-cli/target/sprintly-cli-1.0.0-SNAPSHOT-jar-with-dependencies.jar
 
-# This will drop you into the interactive prompt:
-sprintly> login -e admin@sprintly.com -p *****
+# This will drop you into the interactive prompt where you can type commands:
+sprintly> login
+Please enter your login details.
+Enter your email: admin@sprintly.com
+Enter your password: *****
 ...
-sprintly> task list
+sprintly> task create
+Enter task title: Fix the DB
+Enter task description: The DB is down
+Fetching users...
+1. Alice (alice@sprintly.com)
+Enter the number to assign this task: 1
 ```
 
 ### Access Points

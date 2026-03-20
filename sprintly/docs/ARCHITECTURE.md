@@ -73,6 +73,7 @@
 | `sprintly-task`         | JAR module   | Task CRUD, assignment, status transitions, comments |
 | `sprintly-notification` | JAR module   | WebSocket config, real-time notifications           |
 | `sprintly-gateway`      | **Runnable** | Orchestrates all modules, Swagger, CORS, filters    |
+| `sprintly-cli`          | **Runnable** | Interactive Terminal REPL client, Command parsing   |
 
 > Only `sprintly-gateway` has `@SpringBootApplication` and produces a runnable fat JAR.
 
@@ -225,7 +226,8 @@ DELETE /api/users/{id}      │        │      │           │         │  �
 | ----- | ----------------------- | ------------------ | ------------------------------------- |
 | 1     | `sprintly-common`       | ✅ Complete        | DTOs, exceptions, patterns, utils     |
 | 2     | `sprintly-auth`         | ✅ Complete        | JWT, OAuth2, SecurityConfig           |
-| 3     | `sprintly-user`         | 🔲 Basic structure | User entity, repository               |
+| 3     | `sprintly-user`         | ✅ Complete        | User entity, repository, User API     |
 | 4     | `sprintly-task`         | ✅ Complete        | Task CRUD, user authentication        |
 | 5     | `sprintly-notification` | ✅ Complete        | WebSocket, REST API, real-time alerts |
 | 6     | `sprintly-gateway`      | ✅ Complete        | Swagger, CORS, filters, exception hdl |
+| 7     | `sprintly-cli`          | ✅ Complete        | Interactive REPL, Commands, Prompts   |
