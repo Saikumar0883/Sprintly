@@ -1,8 +1,10 @@
 package com.sprintly.common.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -14,17 +16,19 @@ import java.util.Map;
  */
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ErrorResponse {
 
-    private final int status;
-    private final String error;
-    private final String message;
-    private final String path;
+    private int status;
+    private String error;
+    private String message;
+    private String path;
 
     /** Field-level validation errors, e.g. { "email": "must not be blank" } */
-    private final Map<String, String> fieldErrors;
+    private Map<String, String> fieldErrors;
 
     @Builder.Default
-    private final LocalDateTime timestamp = LocalDateTime.now();
+    private LocalDateTime timestamp = LocalDateTime.now();
 }

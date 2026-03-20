@@ -1,8 +1,10 @@
 package com.sprintly.common.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -22,15 +24,17 @@ import java.time.LocalDateTime;
  */
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
 
-    private final boolean success;
-    private final String message;
-    private final T data;
+    private boolean success;
+    private String message;
+    private T data;
 
     @Builder.Default
-    private final LocalDateTime timestamp = LocalDateTime.now();
+    private LocalDateTime timestamp = LocalDateTime.now();
 
     /** Convenience factory for success responses */
     public static <T> ApiResponse<T> success(String message, T data) {

@@ -76,4 +76,10 @@ public interface UserRepository {
      * @return true if a user was deleted, false if not found
      */
     boolean deleteById(Long id);
+
+    /**
+     * Find all users.
+     * @return List of all users
+     */
+    java.util.List<User> findAll();
 }

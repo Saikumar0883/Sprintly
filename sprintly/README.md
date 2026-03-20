@@ -168,20 +168,31 @@ sprintly/
 ## 🚀 Running the App
 
 ```bash
-# 1. Start PostgreSQL (Docker recommended)
-docker run -d --name pg -e POSTGRES_DB=sprintly_db \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 postgres:15
+# 1. Start PostgreSQL
+docker-compose up -d postgres
 
 # 2. Initialize database schema
+# (Assuming Postgres running on localhost:5432)
 psql -h localhost -U postgres -d sprintly_db -f init.sql
 
-# 3. Build all modules from root
-mvn clean install
+# 3. Build all modules using Docker
+docker build -t sprintly .
 
 # 4. Run from gateway module
 cd sprintly-gateway
 mvn spring-boot:run
+```
+
+### 💬 Interactive CLI REPL
+The `sprintly-cli` now features an interactive REPL mode (similar to Claude Code CLI) for enhanced user experience.
+```bash
+# Run the CLI interactively
+java -jar sprintly-cli/target/sprintly-cli-1.0.0-SNAPSHOT-jar-with-dependencies.jar
+
+# This will drop you into the interactive prompt:
+sprintly> login -e admin@sprintly.com -p *****
+...
+sprintly> task list
 ```
 
 ### Access Points

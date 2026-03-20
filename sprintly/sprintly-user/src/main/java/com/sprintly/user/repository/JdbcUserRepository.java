@@ -123,4 +123,10 @@ public class JdbcUserRepository implements UserRepository {
         int rowsAffected = jdbcTemplate.update(sql, id);
         return rowsAffected > 0;
     }
+
+    @Override
+    public java.util.List<User> findAll() {
+        String sql = "SELECT * FROM users";
+        return jdbcTemplate.query(sql, userRowMapper);
+    }
 }

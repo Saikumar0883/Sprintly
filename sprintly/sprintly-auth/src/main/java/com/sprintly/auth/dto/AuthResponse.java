@@ -2,8 +2,10 @@ package com.sprintly.auth.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * ─────────────────────────────────────────────────────────────────
@@ -31,29 +33,31 @@ import lombok.Getter;
  */
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Response returned on successful authentication")
 public class AuthResponse {
 
     @Schema(description = "JWT access token for API authorization", example = "eyJhbGci...")
-    private final String accessToken;
+    private String accessToken;
 
     @Schema(description = "Refresh token for obtaining new access tokens", example = "eyJhbGci...")
-    private final String refreshToken;
+    private String refreshToken;
 
     @Schema(description = "Token type, always Bearer", example = "Bearer")
     @Builder.Default
-    private final String tokenType = "Bearer";
+    private String tokenType = "Bearer";
 
     @Schema(description = "Access token lifetime in seconds", example = "900")
-    private final long expiresIn;
+    private long expiresIn;
 
     @Schema(description = "ID of the authenticated user", example = "1")
-    private final Long userId;
+    private Long userId;
 
     @Schema(description = "Email of the authenticated user", example = "ravi@sprintly.com")
-    private final String email;
+    private String email;
 
     @Schema(description = "Role of the authenticated user", example = "ROLE_DEVELOPER")
-    private final String role;
+    private String role;
 }
