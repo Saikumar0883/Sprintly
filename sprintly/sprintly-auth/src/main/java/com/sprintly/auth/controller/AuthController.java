@@ -167,11 +167,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        /*
-         * @AuthenticationPrincipal injects the UserDetails that JwtAuthFilter
-         * placed in the SecurityContext when it validated the Bearer token.
-         * We extract the email (username) and pass it to AuthService.
-         */
+        if (userDetails == null) {
+            throw new com.sprintly.common.exception.UnauthorizedException("Please login first to logout");
+        }
+
         authService.logout(userDetails.getUsername());
 
         return ResponseEntity.ok(
@@ -179,19 +178,5 @@ public class AuthController {
         );
     }
 
-    // ── OAuth2 Info ─────────────────────────────────────────────────
 
-    @Operation(
-        summary     = "Google OAuth2 login entry point",
-        description = "Redirects to Google's consent screen. " +
-                      "Not called directly — click the link to initiate OAuth2 flow. " +
-                      "On success, redirects to frontend with access + refresh tokens."
-    )
-    @GetMapping("/oauth2/info")
-    public ResponseEntity<ApiResponse<String>> oauth2Info() {
-        return ResponseEntity.ok(
-                ApiResponse.success("OAuth2 ready",
-                        "Navigate to: /oauth2/authorization/google to start Google login")
-        );
-    }
 }
