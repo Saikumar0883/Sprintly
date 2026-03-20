@@ -72,10 +72,9 @@ public class JwtService {
      * @param role        user's application role string
      * @return signed JWT string
      */
-    public String generateAccessToken(UserDetails userDetails, Long userId, String role) {
+    public String generateAccessToken(UserDetails userDetails, Long userId) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userId", userId);
-        extraClaims.put("role", role);
         extraClaims.put("type", "access");
 
         return buildToken(extraClaims, userDetails.getUsername(), accessTokenExpiryMs);
@@ -173,14 +172,6 @@ public class JwtService {
     public Long extractUserId(String token) {
         Claims claims = extractAllClaims(token);
         return claims.get("userId", Long.class);
-    }
-
-    /**
-     * Extracts the role embedded in the token claims.
-     */
-    public String extractRole(String token) {
-        Claims claims = extractAllClaims(token);
-        return claims.get("role", String.class);
     }
 
     /**

@@ -41,17 +41,6 @@ public interface UserRepository {
      */
     boolean existsByEmail(String email);
 
-    /**
-     * Find a user by their OAuth2 provider and provider-specific ID.
-     * Called on every OAuth2 login to match the returning user.
-     *
-     * Example: findByOauth2ProviderAndOauth2ProviderId("google", "1234567890")
-     *
-     * @param provider   OAuth2 provider name, e.g. "google"
-     * @param providerId subject claim from the OAuth2 token
-     * @return Optional containing the matched user
-     */
-    Optional<User> findByOauth2ProviderAndOauth2ProviderId(String provider, String providerId);
 
     /**
      * Save a new user or update an existing one.

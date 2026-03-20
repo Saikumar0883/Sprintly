@@ -5,8 +5,6 @@
 --   psql -h localhost -U postgres -d taskflow_db -f init.sql
 -- ============================================================================
 
--- Create ENUM types
-CREATE TYPE user_role AS ENUM ('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_DEVELOPER');
 
 -- ============================================================================
 -- users table
@@ -16,10 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
-    password VARCHAR(255),  -- NULL for OAuth2-only users
-    role user_role NOT NULL DEFAULT 'ROLE_DEVELOPER',
-    oauth2_provider VARCHAR(30),  -- e.g. 'google', 'github'
-    oauth2_provider_id VARCHAR(100),
+    password VARCHAR(255) NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -27,7 +22,6 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_oauth2 ON users(oauth2_provider, oauth2_provider_id);
 
 -- ============================================================================
 -- refresh_tokens table

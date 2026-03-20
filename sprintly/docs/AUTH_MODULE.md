@@ -76,7 +76,7 @@ CREATE TABLE users (
     name            VARCHAR(100)  NOT NULL,
     email           VARCHAR(150)  NOT NULL UNIQUE,
     password        VARCHAR(255),               -- NULL for OAuth2 users
-    role            VARCHAR(20)   NOT NULL DEFAULT 'ROLE_DEVELOPER',
+    role            VARCHAR(20)   NOT NULL DEFAULT 'ROLE_USER',
     oauth2_provider VARCHAR(30),
     oauth2_provider_id VARCHAR(100),
     enabled         BOOLEAN       NOT NULL DEFAULT TRUE,
@@ -124,7 +124,7 @@ CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
     "expiresIn": 900,
     "userId": 1,
     "email": "ravi@sprintly.com",
-    "role": "ROLE_DEVELOPER"
+    "role": "ROLE_USER"
   },
   "timestamp": "2025-01-01T10:00:00"
 }
@@ -205,9 +205,7 @@ GET  /oauth2/**
 
 ### Role Hierarchy
 ```
-ROLE_ADMIN     → full access
-ROLE_MANAGER   → create/delete/assign tasks
-ROLE_DEVELOPER → create/update own tasks (default for new users)
+ROLE_USER     → standard user
 ```
 
 ### @PreAuthorize Examples (used in other modules)

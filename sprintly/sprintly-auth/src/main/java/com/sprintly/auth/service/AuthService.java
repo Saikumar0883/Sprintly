@@ -6,7 +6,6 @@ import com.sprintly.auth.dto.RefreshTokenRequest;
 import com.sprintly.auth.dto.RegisterRequest;
 import com.sprintly.auth.entity.RefreshToken;
 import com.sprintly.auth.repository.RefreshTokenRepository;
-import com.sprintly.common.enums.UserRole;
 import com.sprintly.common.exception.BadRequestException;
 import com.sprintly.common.exception.ResourceNotFoundException;
 import com.sprintly.common.exception.UnauthorizedException;
@@ -85,7 +84,6 @@ public class AuthService {
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(UserRole.ROLE_DEVELOPER)   // new users start with minimal role
                 .enabled(true)
                 .build();
 
@@ -208,12 +206,12 @@ public class AuthService {
                 org.springframework.security.core.userdetails.User
                         .withUsername(user.getEmail())
                         .password(user.getPassword() != null ? user.getPassword() : "")
-                        .authorities(user.getRole().name())
+                        .authorities(java.util.List.of())
                         .build();
 
         // Generate access token (short-lived, carries claims)
         String accessToken = jwtService.generateAccessToken(
-                userDetails, user.getId(), user.getRole().name()
+                userDetails, user.getId()
         );
 
         // Generate refresh token (long-lived, minimal claims)
@@ -235,7 +233,6 @@ public class AuthService {
                 .expiresIn(jwtService.getAccessTokenExpiryMs() / 1000)
                 .userId(user.getId())
                 .email(user.getEmail())
-                .role(user.getRole().name())
                 .build();
     }
 }

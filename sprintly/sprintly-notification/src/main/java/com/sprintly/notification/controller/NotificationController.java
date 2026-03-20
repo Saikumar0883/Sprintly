@@ -6,7 +6,6 @@ import com.sprintly.notification.service.NotificationService;
 import com.sprintly.common.dto.ApiResponse;
 import com.sprintly.user.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -33,7 +32,6 @@ public class NotificationController {
      * Get all notifications for the authenticated user.
      */
     @GetMapping
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<NotificationDTO>>> getMyNotifications(Principal principal) {
         Long userId = getCurrentUserId(principal);
         List<NotificationDTO> notifications = notificationService.getUserNotifications(userId)
@@ -48,7 +46,6 @@ public class NotificationController {
      * Get unread notifications for the authenticated user.
      */
     @GetMapping("/unread")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<NotificationDTO>>> getUnreadNotifications(Principal principal) {
         Long userId = getCurrentUserId(principal);
         List<NotificationDTO> notifications = notificationService.getUnreadNotifications(userId)
@@ -63,7 +60,6 @@ public class NotificationController {
      * Get unread notification count for the authenticated user.
      */
     @GetMapping("/unread/count")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Integer>> getUnreadCount(Principal principal) {
         Long userId = getCurrentUserId(principal);
         int count = notificationService.getUnreadCount(userId);
@@ -75,7 +71,6 @@ public class NotificationController {
      * Mark a specific notification as read.
      */
     @PutMapping("/{id}/read")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Boolean>> markAsRead(@PathVariable Long id) {
         boolean success = notificationService.markAsRead(id);
         if (success) {
@@ -89,7 +84,6 @@ public class NotificationController {
      * Mark all notifications as read for the authenticated user.
      */
     @PutMapping("/read-all")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Integer>> markAllAsRead(Principal principal) {
         Long userId = getCurrentUserId(principal);
         int count = notificationService.markAllAsRead(userId);
@@ -101,7 +95,6 @@ public class NotificationController {
      * Delete a specific notification.
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
         boolean deleted = notificationService.deleteNotification(id);
         if (deleted) {
@@ -115,7 +108,6 @@ public class NotificationController {
      * Delete all notifications for the authenticated user.
      */
     @DeleteMapping
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Integer>> deleteAllNotifications(Principal principal) {
         Long userId = getCurrentUserId(principal);
         int count = notificationService.deleteAllUserNotifications(userId);

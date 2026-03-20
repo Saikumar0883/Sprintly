@@ -7,7 +7,6 @@ import com.sprintly.task.service.TaskService;
 import com.sprintly.common.dto.ApiResponse;
 import com.sprintly.user.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -28,14 +27,12 @@ public class TaskController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<TaskDTO>>> list() {
         List<TaskDTO> tasks = taskService.listTasks();
         return ResponseEntity.ok(ApiResponse.success("Tasks retrieved successfully", tasks));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<TaskDTO>> get(@PathVariable Long id) {
         Optional<TaskDTO> opt = taskService.getTask(id);
         return opt.map(t -> ResponseEntity.ok(ApiResponse.success("Task retrieved successfully", t)))
@@ -43,7 +40,6 @@ public class TaskController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<TaskDTO>> create(@Valid @RequestBody CreateTaskRequest req,
                                                        Principal principal) {
         // Get the current user ID from the authenticated principal (email)
@@ -57,7 +53,6 @@ public class TaskController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('DEVELOPER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<TaskDTO>> update(@PathVariable Long id,
                                                        @Valid @RequestBody UpdateTaskRequest req) {
         Optional<TaskDTO> opt = taskService.updateTask(id, req);
@@ -66,7 +61,6 @@ public class TaskController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         boolean deleted = taskService.deleteTask(id);
         if (deleted) return ResponseEntity.noContent().build();

@@ -231,11 +231,11 @@ Enter the number to assign this task: 1
 
 | Method | Endpoint                        | Role       |
 | ------ | ------------------------------- | ---------- |
-| GET    | /api/tasks                      | Any        |
-| POST   | /api/tasks                      | DEVELOPER+ |
-| PATCH  | /api/tasks/{id}/status          | DEVELOPER+ |
-| DELETE | /api/tasks/{id}                 | MANAGER+   |
-| POST   | /api/tasks/{id}/assign/{userId} | MANAGER+   |
+| GET    | /api/tasks                      | Auth       |
+| POST   | /api/tasks                      | Auth       |
+| PATCH  | /api/tasks/{id}/status          | Auth       |
+| DELETE | /api/tasks/{id}                 | Auth       |
+| POST   | /api/tasks/{id}/assign/{userId} | Auth       |
 
 ### Notifications
 

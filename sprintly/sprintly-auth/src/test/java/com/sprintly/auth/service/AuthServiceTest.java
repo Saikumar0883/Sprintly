@@ -5,7 +5,6 @@ import com.sprintly.auth.dto.RegisterRequest;
 import com.sprintly.auth.dto.AuthResponse;
 import com.sprintly.auth.entity.RefreshToken;
 import com.sprintly.auth.repository.RefreshTokenRepository;
-import com.sprintly.common.enums.UserRole;
 import com.sprintly.common.exception.BadRequestException;
 import com.sprintly.common.exception.UnauthorizedException;
 import com.sprintly.user.entity.User;
@@ -62,7 +61,6 @@ class AuthServiceTest {
                 .name("Ravi Kumar")
                 .email("ravi@sprintly.com")
                 .password("$2a$12$hashedpassword")
-                .role(UserRole.ROLE_DEVELOPER)
                 .enabled(true)
                 .build();
     }
@@ -81,7 +79,7 @@ class AuthServiceTest {
         when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
         when(passwordEncoder.encode(request.getPassword())).thenReturn("$2a$12$hashed");
         when(userRepository.save(any(User.class))).thenReturn(mockUser);
-        when(jwtService.generateAccessToken(any(), anyLong(), anyString())).thenReturn("access-token");
+        when(jwtService.generateAccessToken(any(), anyLong())).thenReturn("access-token");
         when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
         when(jwtService.getAccessTokenExpiryMs()).thenReturn(900000L);
         when(jwtService.getRefreshTokenExpiryMs()).thenReturn(604800000L);
@@ -95,8 +93,6 @@ class AuthServiceTest {
         assertThat(response.getAccessToken()).isEqualTo("access-token");
         assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
         assertThat(response.getEmail()).isEqualTo("ravi@sprintly.com");
-        assertThat(response.getRole()).isEqualTo("ROLE_DEVELOPER");
-
         verify(userRepository).save(any(User.class));
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
@@ -135,7 +131,7 @@ class AuthServiceTest {
                 new UsernamePasswordAuthenticationToken("ravi@sprintly.com", null)
         );
         when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(mockUser));
-        when(jwtService.generateAccessToken(any(), anyLong(), anyString())).thenReturn("access-token");
+        when(jwtService.generateAccessToken(any(), anyLong())).thenReturn("access-token");
         when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
         when(jwtService.getAccessTokenExpiryMs()).thenReturn(900000L);
         when(jwtService.getRefreshTokenExpiryMs()).thenReturn(604800000L);

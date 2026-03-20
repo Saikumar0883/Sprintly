@@ -4,7 +4,6 @@ import com.sprintly.user.entity.User;
 import com.sprintly.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -75,7 +74,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
                 .password(user.getPassword() != null ? user.getPassword() : "")
-                .authorities(List.of(new SimpleGrantedAuthority(user.getRole().name())))
+                .authorities(List.of())
                 .accountExpired(false)
                 .accountLocked(false)
                 .credentialsExpired(false)

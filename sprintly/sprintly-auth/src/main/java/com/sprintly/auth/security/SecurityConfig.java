@@ -66,7 +66,6 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final CustomUserDetailsService userDetailsService;
-    private final OAuth2SuccessHandler oauth2SuccessHandler;
 
     /**
      * Main security filter chain.
@@ -84,9 +83,6 @@ public class SecurityConfig {
                         // Auth endpoints — public (no token needed)
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // OAuth2 callback — must be public
-                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-
                         // Swagger UI — allow during development
                         // Note: some swagger installations use /swagger/** (e.g. /swagger/index.html)
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/swagger/**",
@@ -97,14 +93,11 @@ public class SecurityConfig {
                         // Actuator health — allow for load balancer checks
                         .requestMatchers("/actuator/health").permitAll()
 
-                        // Admin-only routes
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
                         // User management — authenticated users only
                         // Fine-grained role checks done via @PreAuthorize in controllers
                         .requestMatchers(HttpMethod.GET, "/api/users/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/users/**").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/users/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/users/**").authenticated()
 
                         // Task routes — authenticated, role checked at method level
                         .requestMatchers("/api/tasks/**").authenticated()
@@ -118,9 +111,6 @@ public class SecurityConfig {
 
                 // ── Session management: stateless (no HttpSession) ────────
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // ── OAuth2 Login (Google) ──────────────────────────────────
-                .oauth2Login(oauth2 -> oauth2.successHandler(oauth2SuccessHandler))
 
                 // ── Wire our DaoAuthenticationProvider ────────────────────
                 .authenticationProvider(authenticationProvider())

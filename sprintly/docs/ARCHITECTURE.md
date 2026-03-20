@@ -184,23 +184,22 @@ Usage   : TaskStatusStrategyFactory
 ## Security Model
 
 ```
-Endpoint                    │ Public │ Auth │ DEVELOPER │ MANAGER │ ADMIN
-────────────────────────────┼────────┼──────┼───────────┼─────────┼──────
-POST /api/auth/**           │  ✓     │      │           │         │
-GET  /swagger-ui/**         │  ✓     │      │           │         │
-GET  /actuator/health       │  ✓     │      │           │         │
-────────────────────────────┼────────┼──────┼───────────┼─────────┼──────
-GET  /api/tasks             │        │  ✓   │     ✓     │    ✓    │  ✓
-POST /api/tasks             │        │      │     ✓     │    ✓    │  ✓
-PATCH /api/tasks/{id}/status│        │      │     ✓     │    ✓    │  ✓
-DELETE /api/tasks/{id}      │        │      │           │    ✓    │  ✓
-POST /api/tasks/{id}/assign │        │      │           │    ✓    │  ✓
-────────────────────────────┼────────┼──────┼───────────┼─────────┼──────
-GET  /api/users             │        │      │           │    ✓    │  ✓
-PUT  /api/users/{id}        │        │  ✓*  │           │         │  ✓
-DELETE /api/users/{id}      │        │      │           │         │  ✓
-────────────────────────────┼────────┼──────┼───────────┼─────────┼──────
-*own profile only
+Endpoint                    │ Public │ Auth 
+────────────────────────────┼────────┼──────
+POST /api/auth/**           │  ✓     │      
+GET  /swagger-ui/**         │  ✓     │      
+GET  /actuator/health       │  ✓     │      
+────────────────────────────┼────────┼──────
+GET  /api/tasks             │        │  ✓   
+POST /api/tasks             │        │  ✓   
+PATCH /api/tasks/{id}/status│        │  ✓   
+DELETE /api/tasks/{id}      │        │  ✓   
+POST /api/tasks/{id}/assign │        │  ✓   
+────────────────────────────┼────────┼──────
+GET  /api/users             │        │  ✓   
+PUT  /api/users/{id}        │        │  ✓   
+DELETE /api/users/{id}      │        │  ✓   
+────────────────────────────┼────────┼──────
 ```
 
 ---
