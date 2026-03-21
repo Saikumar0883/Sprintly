@@ -22,7 +22,7 @@
 ┌──────▼──────┐ ┌─────▼──────┐ ┌─────▼──────┐ ┌──────▼──────┐
 │sprintly-auth│ │sprintly-   │ │sprintly-   │ │sprintly-    │
 │             │ │user        │ │task        │ │notification │
-│ JWT · OAuth2│ │Profile     │ │CRUD · State│ │WebSocket    │
+│ JWT         │ │Profile     │ │CRUD · State│ │WebSocket    │
 │ Refresh tkn │ │Roles       │ │Comments    │ │Real-time    │
 └─────────────┘ └────────────┘ └────────────┘ └─────────────┘
                        │ all share
@@ -82,7 +82,6 @@ sprintly/
 │       ├── service/JwtService.java
 │       ├── security/SecurityConfig.java
 │       ├── security/JwtAuthFilter.java
-│       ├── security/OAuth2SuccessHandler.java
 │       ├── entity/RefreshToken.java
 │       ├── dto/LoginRequest.java
 │       ├── dto/RegisterRequest.java
@@ -155,8 +154,8 @@ sprintly/
 | Layer     | Technology                            |
 | --------- | ------------------------------------- |
 | Framework | Spring Boot 3.2.x, Java 17            |
-| Security  | Spring Security 6, JWT (jjwt), OAuth2 |
-| Database  | PostgreSQL 15 + Spring JDBC           |
+| Security  | Spring Security 6, JWT (jjwt)         |
+| Database  | PostgreSQL 15 + Spring JDBC + Flyway  |
 | Real-time | Spring WebSocket + STOMP              |
 | API Docs  | SpringDoc OpenAPI 3 (Swagger UI)      |
 | Mapping   | MapStruct                             |
@@ -171,14 +170,11 @@ sprintly/
 # 1. Start PostgreSQL
 docker-compose up -d postgres
 
-# 2. Initialize database schema
-# (Assuming Postgres running on localhost:5432)
-psql -h localhost -U postgres -d sprintly_db -f init.sql
+# 2. Build all modules using Maven
+mvn clean install -DskipTests
 
-# 3. Build all modules using Docker
-docker build -t sprintly .
-
-# 4. Run from gateway module
+# 3. Run from gateway module
+# (Flyway will automatically initialize the database schema)
 cd sprintly-gateway
 mvn spring-boot:run
 ```

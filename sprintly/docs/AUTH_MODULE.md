@@ -9,7 +9,7 @@
 ## Overview
 
 The Auth module handles all identity and access management for Sprintly.
-It provides email/password authentication, Google OAuth2 login, JWT token issuance,
+It provides email/password authentication, JWT token issuance,
 token refresh with rotation, and logout.
 
 ---
@@ -21,9 +21,6 @@ POST /api/auth/register ──► AuthController ──► AuthService
 POST /api/auth/login    ──►      │          ──► AuthenticationManager
 POST /api/auth/refresh  ──►      │          ──► JwtService
 POST /api/auth/logout   ──►      │          ──► RefreshTokenRepository
-                                 │
-GET /oauth2/authorization/google ──► Spring OAuth2 ──► OAuth2SuccessHandler
-                                                    ──► AuthService (issueTokens)
 
 Every other request ──► JwtAuthFilter ──► CustomUserDetailsService
                                       ──► SecurityContextHolder
@@ -38,7 +35,7 @@ Every other request ──► JwtAuthFilter ──► CustomUserDetailsService
 |-----------|-----------------|
 | Algorithm | HS256           |
 | Expiry    | 15 minutes      |
-| Claims    | sub (email), userId, role, type=access, iat, exp |
+| Claims    | sub (email), userId, type=access, iat, exp |
 | Usage     | `Authorization: Bearer <token>` on every API call |
 
 ### Refresh Token
@@ -75,10 +72,7 @@ CREATE TABLE users (
     id              BIGSERIAL PRIMARY KEY,
     name            VARCHAR(100)  NOT NULL,
     email           VARCHAR(150)  NOT NULL UNIQUE,
-    password        VARCHAR(255),               -- NULL for OAuth2 users
-    role            VARCHAR(20)   NOT NULL DEFAULT 'ROLE_USER',
-    oauth2_provider VARCHAR(30),
-    oauth2_provider_id VARCHAR(100),
+    password        VARCHAR(255)  NOT NULL,
     enabled         BOOLEAN       NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMP     NOT NULL,
     updated_at      TIMESTAMP
@@ -124,7 +118,7 @@ CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
     "expiresIn": 900,
     "userId": 1,
     "email": "ravi@sprintly.com",
-    "role": "ROLE_USER"
+    "name": "Ravi Kumar"
   },
   "timestamp": "2025-01-01T10:00:00"
 }
@@ -200,20 +194,6 @@ POST /api/auth/**
 GET  /swagger-ui/**
 GET  /v3/api-docs/**
 GET  /actuator/health
-GET  /oauth2/**
-```
-
-### Role Hierarchy
-```
-ROLE_USER     → standard user
-```
-
-### @PreAuthorize Examples (used in other modules)
-```java
-@PreAuthorize("hasRole('ADMIN')")
-@PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
-@PreAuthorize("hasRole('DEVELOPER') or #userId == authentication.principal.id")
-```
 
 ---
 
@@ -233,7 +213,7 @@ return AuthResponse.builder()
     .expiresIn(900)
     .userId(user.getId())
     .email(user.getEmail())
-    .role(user.getRole().name())
+    .name(user.getName())
     .build();
 ```
 
@@ -244,8 +224,6 @@ return AuthResponse.builder()
 | Variable              | Description                    | Default (dev only!)          |
 |-----------------------|--------------------------------|------------------------------|
 | `JWT_SECRET`          | HMAC-SHA256 secret (min 32ch)  | sprintly-super-secret-key... |
-| `GOOGLE_CLIENT_ID`    | Google OAuth2 client ID        | —                            |
-| `GOOGLE_CLIENT_SECRET`| Google OAuth2 client secret    | —                            |
 
 > ⚠️ **Never commit real secrets.** Use environment variables or a secrets manager in production.
 
@@ -272,7 +250,6 @@ sprintly-auth/
     │   ├── security/
     │   │   ├── SecurityConfig.java       ← Spring Security + JWT wiring
     │   │   ├── JwtAuthFilter.java        ← Per-request JWT validation
-    │   │   └── OAuth2SuccessHandler.java ← Post-Google-login token issuance
     │   └── service/
     │       ├── AuthService.java          ← register/login/refresh/logout logic
     │       ├── JwtService.java           ← JWT generation + parsing

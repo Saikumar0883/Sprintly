@@ -15,18 +15,8 @@ spring:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 30000
-
-
-
-  # ── OAuth2 (Google) ───────────────────────────────────────
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
-            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
-            scope: email, profile
+  flyway:
+    baseline-on-migrate: true
 
 # ── JWT Settings ──────────────────────────────────────────
 jwt:
@@ -45,7 +35,6 @@ springdoc:
     path: /v3/api-docs
   show-actuator: false
 
-# ── Actuator ──────────────────────────────────────────────
 management:
   endpoints:
     web:

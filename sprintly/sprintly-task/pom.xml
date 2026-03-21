@@ -60,6 +60,10 @@
       <groupId>io.jsonwebtoken</groupId>
       <artifactId>jjwt-jackson</artifactId>
     </dependency>
+      <dependency>
+          <groupId>com.sprintly</groupId>
+          <artifactId>sprintly-notification</artifactId>
+      </dependency>
   </dependencies>
 
 </project>

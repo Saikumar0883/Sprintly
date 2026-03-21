@@ -30,7 +30,7 @@ public class RefreshCommand implements Callable<Integer> {
 
         if (response.isSuccess()) {
             AuthResponse auth = response.getData();
-            CliConfig.save(auth.getAccessToken(), auth.getRefreshToken());
+            CliConfig.save(auth.getAccessToken(), auth.getRefreshToken(), auth.getName(),auth.getEmail());
             System.out.println("Tokens refreshed successfully.");
             return 0;
         } else {

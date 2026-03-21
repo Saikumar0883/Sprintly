@@ -5,35 +5,51 @@ import com.sprintly.auth.dto.AuthResponse;
 import com.sprintly.auth.dto.RegisterRequest;
 import com.sprintly.cli.client.SprintlyClient;
 import com.sprintly.cli.config.CliConfig;
-import com.sprintly.common.dto.ApiResponse;
 import com.sprintly.cli.util.CliPrompt;
+import com.sprintly.common.dto.ApiResponse;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.util.concurrent.Callable;
 
-@Command(name = "register", description = "Register a new user")
+@Command(name = "register", description = "Register a new Sprintly account")
 public class RegisterCommand implements Callable<Integer> {
 
-    @Option(names = {"-e", "--email"}, description = "User email")
+    @Option(names = {"-n", "--name"}, description = "Your full name")
+    private String name;
+
+    @Option(names = {"-e", "--email"}, description = "Your email address")
     private String email;
 
-    @Option(names = {"-p", "--password"}, description = "User password")
+    @Option(names = {"-p", "--password"}, description = "Your password")
     private String password;
-
-    @Option(names = {"-n", "--name"}, description = "User full name")
-    private String name;
 
     private final SprintlyClient client = new SprintlyClient();
 
     @Override
     public Integer call() throws Exception {
-        if (email == null && password == null && name == null) {
-            System.out.println("Hey hi! Please enter your details.");
+
+        // ── GUARD: Already logged in? ─────────────────────────────────
+        CliConfig existing = CliConfig.load();
+        if (existing != null && existing.getAccessToken() != null
+                && !existing.getAccessToken().isBlank()) {
+
+            String displayName = (existing.getName() != null && !existing.getName().isBlank())
+                    ? existing.getName()
+                    : (existing.getEmail() != null ? existing.getEmail() : "Unknown user");
+
+            System.out.println();
+            System.out.println("  ℹ  You are already logged in as: " + displayName);
+            System.out.println("     Run 'sprintly logout' first to create a new account.");
+            System.out.println();
+            return 0;
         }
-        
+        // ─────────────────────────────────────────────────────────────
+
+        System.out.println("Hey hi! Please enter your details.");
+
         if (name == null) {
-            name = CliPrompt.prompt("Enter username: ");
+            name = CliPrompt.prompt("Enter your name: ");
         }
         if (email == null) {
             email = CliPrompt.prompt("Enter your email: ");
@@ -43,19 +59,36 @@ public class RegisterCommand implements Callable<Integer> {
         }
 
         RegisterRequest request = new RegisterRequest();
+        request.setName(name);
         request.setEmail(email);
         request.setPassword(password);
-        request.setName(name);
 
-        ApiResponse<AuthResponse> response = client.post("/auth/register", request, new TypeReference<>() {}, false);
+        ApiResponse<AuthResponse> response =
+                client.post("/auth/register", request, new TypeReference<>() {}, false);
 
-        if (response.isSuccess()) {
+        if (response != null && response.isSuccess()) {
             AuthResponse auth = response.getData();
-            CliConfig.save(auth.getAccessToken(), auth.getRefreshToken());
-            System.out.println("Registration successful! Tokens saved.");
+
+            // Save with name — register is the ONLY place we have the user's
+            // chosen name. Login response doesn't return name, only email.
+            CliConfig.save(
+                    auth.getAccessToken(),
+                    auth.getRefreshToken(),
+                    name,             // ← actual name entered during registration
+                    auth.getEmail()
+            );
+
+            System.out.println();
+            System.out.println("  ✔  Registration successful!");
+            System.out.println("     Welcome to Sprintly, " + name + " 👋");
+            System.out.println();
             return 0;
+
         } else {
-            System.err.println("Registration failed: " + response.getMessage());
+            System.err.println();
+            System.err.println("  ✖  Registration failed: "
+                    + (response != null ? response.getMessage() : "No response from server"));
+            System.err.println();
             return 1;
         }
     }

@@ -57,4 +57,7 @@ public class AuthResponse {
 
     @Schema(description = "Email of the authenticated user", example = "ravi@sprintly.com")
     private String email;
+
+    @Schema(description = "Name of the authenticated user", example = "Ravi Kumar")
+    private String name;
 }

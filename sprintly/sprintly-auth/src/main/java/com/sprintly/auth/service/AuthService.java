@@ -233,6 +233,7 @@ public class AuthService {
                 .expiresIn(jwtService.getAccessTokenExpiryMs() / 1000)
                 .userId(user.getId())
                 .email(user.getEmail())
+                .name(user.getName())
                 .build();
     }
 }
