@@ -15,7 +15,7 @@
   <description>Terminal client for Sprintly with interactive TUI</description>
 
   <dependencies>
-    <!-- Internal -->
+    <!-- Internal modules -->
     <dependency>
       <groupId>com.sprintly</groupId>
       <artifactId>sprintly-common</artifactId>
@@ -27,6 +27,14 @@
     <dependency>
       <groupId>com.sprintly</groupId>
       <artifactId>sprintly-task</artifactId>
+    </dependency>
+    <!--
+      sprintly-notification added so the CLI can use NotificationDTO directly.
+      Without this, the CLI cannot import NotificationDTO from the notification module.
+    -->
+    <dependency>
+      <groupId>com.sprintly</groupId>
+      <artifactId>sprintly-notification</artifactId>
     </dependency>
 
     <!-- Picocli -->
@@ -101,7 +109,7 @@
         </executions>
       </plugin>
 
-      <!-- Generate a bash wrapper script directly in ~/.local/bin -->
+      <!-- Generate bash wrapper script in ~/.local/bin -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
@@ -116,7 +124,8 @@
             <configuration>
               <target>
                 <mkdir dir="${user.home}/.local/bin" />
-                <echo file="${user.home}/.local/bin/sprintly" message="#!/bin/bash${line.separator}java -jar &quot;${project.build.directory}/${project.build.finalName}.jar&quot; &quot;$@&quot;${line.separator}" />
+                <echo file="${user.home}/.local/bin/sprintly"
+                      message="#!/bin/bash${line.separator}java -jar &quot;${project.build.directory}/${project.build.finalName}.jar&quot; &quot;$@&quot;${line.separator}" />
                 <chmod file="${user.home}/.local/bin/sprintly" perm="755" />
               </target>
             </configuration>

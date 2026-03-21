@@ -7,6 +7,7 @@ import com.sprintly.cli.config.CliConfig;
 import com.sprintly.common.dto.ApiResponse;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -20,10 +21,13 @@ import java.io.IOException;
 /**
  * HTTP client for communicating with the Sprintly backend REST API.
  *
- * ROOT CAUSE FIX for MismatchedInputException:
- *   Old code passed InputStream directly to Jackson — crashes when body is empty.
- *   New code reads body as String first, checks if blank, then parses.
- *   Jackson never sees an empty stream.
+ * Supports: GET, POST, PUT
+ * Handles:
+ *   - Bearer token attachment for authenticated requests
+ *   - Empty response body (fixes MismatchedInputException)
+ *   - HTML response detection (Spring Security redirect)
+ *   - Connection refused errors
+ *   - Login state check
  */
 public class SprintlyClient {
 
@@ -58,17 +62,11 @@ public class SprintlyClient {
 
             HttpPost post = new HttpPost(BASE_URL + path);
             post.setHeader("Content-Type", "application/json");
-
-            if (authenticated) {
-                CliConfig config = CliConfig.load();
-                if (config != null && config.getAccessToken() != null) {
-                    post.setHeader("Authorization", "Bearer " + config.getAccessToken());
-                }
-            }
+            attachToken(post, authenticated);
 
             if (body != null) {
-                String json = mapper.writeValueAsString(body);
-                post.setEntity(new StringEntity(json, ContentType.APPLICATION_JSON));
+                post.setEntity(new StringEntity(
+                        mapper.writeValueAsString(body), ContentType.APPLICATION_JSON));
             }
 
             try (CloseableHttpResponse response = httpClient.execute(post)) {
@@ -89,13 +87,7 @@ public class SprintlyClient {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
 
             HttpGet get = new HttpGet(BASE_URL + path);
-
-            if (authenticated) {
-                CliConfig config = CliConfig.load();
-                if (config != null && config.getAccessToken() != null) {
-                    get.setHeader("Authorization", "Bearer " + config.getAccessToken());
-                }
-            }
+            attachToken(get, authenticated);
 
             try (CloseableHttpResponse response = httpClient.execute(get)) {
                 return parseResponse(response, typeReference);
@@ -107,19 +99,64 @@ public class SprintlyClient {
         }
     }
 
+    // ── HTTP PUT ─────────────────────────────────────────────────────────────
+
+    /**
+     * PUT request — used by notification mark-as-read endpoints.
+     *
+     * Backend notification endpoints use PUT:
+     *   PUT /notifications/{id}/read   → mark one as read
+     *   PUT /notifications/read-all    → mark all as read
+     *
+     * @param path            API path (e.g. "/notifications/5/read")
+     * @param body            Request body (null is fine for mark-as-read calls)
+     * @param typeReference   Expected response type
+     * @param authenticated   Whether to attach Bearer token
+     */
+    public <T> ApiResponse<T> put(String path, Object body,
+                                  TypeReference<ApiResponse<T>> typeReference,
+                                  boolean authenticated) throws IOException {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+
+            HttpPut put = new HttpPut(BASE_URL + path);
+            put.setHeader("Content-Type", "application/json");
+            attachToken(put, authenticated);
+
+            if (body != null) {
+                put.setEntity(new StringEntity(
+                        mapper.writeValueAsString(body), ContentType.APPLICATION_JSON));
+            }
+
+            try (CloseableHttpResponse response = httpClient.execute(put)) {
+                return parseResponse(response, typeReference);
+            } catch (java.net.ConnectException e) {
+                return ApiResponse.<T>error(
+                        "Cannot connect to Sprintly backend at " + BASE_URL
+                                + ". Is the server running?");
+            }
+        }
+    }
+
+    // ── Token attachment helper ───────────────────────────────────────────────
+
+    private void attachToken(org.apache.hc.core5.http.HttpRequest request,
+                             boolean authenticated) {
+        if (authenticated) {
+            CliConfig config = CliConfig.load();
+            if (config != null && config.getAccessToken() != null) {
+                request.setHeader("Authorization", "Bearer " + config.getAccessToken());
+            }
+        }
+    }
+
     // ── Shared response parser ───────────────────────────────────────────────
 
     /**
-     * Reads response body as String first, then parses.
+     * Reads response body as String first, then parses JSON.
      *
-     * This is the fix for:
-     *   MismatchedInputException: No content to map due to end-of-input
-     *   at (org.apache.hc.core5.http.io.entity.EmptyInputStream)
-     *
-     * Root cause: the backend returned an empty body (HTTP 401/403/204).
-     * Old code: mapper.readValue(response.getEntity().getContent(), ...)
-     *           → Jackson gets an empty InputStream → crashes
-     * New code: read body as String first → check if blank → parse safely
+     * Fixes MismatchedInputException when server returns empty body.
+     * Old code passed InputStream directly to Jackson — crashes on empty.
+     * New code reads String first, checks blank, then parses safely.
      */
     private <T> ApiResponse<T> parseResponse(CloseableHttpResponse response,
                                              TypeReference<ApiResponse<T>> typeReference)
@@ -127,7 +164,6 @@ public class SprintlyClient {
 
         int statusCode = response.getCode();
 
-        // Read entire body as String (handles null entity + empty body safely)
         String body = null;
         if (response.getEntity() != null) {
             try {
@@ -137,7 +173,7 @@ public class SprintlyClient {
             }
         }
 
-        // Empty body — happens on 401/403 without body, or 204 No Content
+        // Empty body
         if (body == null || body.isBlank()) {
             if (statusCode == 401) {
                 return ApiResponse.<T>error("Session expired. Run: sprintly login");
@@ -148,7 +184,7 @@ public class SprintlyClient {
             return ApiResponse.<T>error("Server returned empty response (HTTP " + statusCode + ").");
         }
 
-        // HTML body = Spring Security redirect (unauthenticated)
+        // HTML = Spring Security redirect (unauthenticated)
         if (body.trim().startsWith("<")) {
             return ApiResponse.<T>error("Not authenticated. Run: sprintly login");
         }
