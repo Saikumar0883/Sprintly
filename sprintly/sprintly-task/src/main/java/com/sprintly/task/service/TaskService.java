@@ -12,21 +12,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
  * Core business logic for task management.
  *
- * Key responsibility added (P1 fix):
- *   When a task is created with an assignee, and the assignee is different
- *   from the creator, NotificationService.notifyTaskAssigned() is called.
- *   This persists the notification to DB and pushes it via WebSocket
- *   to the assignee's connected client in real-time.
- *
- * Design Pattern: Observer (via NotificationService)
- *   TaskService (Observable) → NotificationService (Observer)
- *   The task creation event is observed and triggers a notification.
+ * Key responsibilities:
+ *   - createTask()        → save + notify assignee via NotificationService
+ *   - updateTask()        → partial field update + notify on assignee change
+ *   - updateTaskStatus()  → validate transition + save + return updated task
+ *   - listTasks()         → fetch all with JOINed names
+ *   - getTask()           → fetch single with JOINed names
+ *   - deleteTask()        → delete by ID
  */
 @Service
 public class TaskService {
@@ -34,14 +33,16 @@ public class TaskService {
     private final TaskRepository repo;
     private final NotificationService notificationService;
 
-    /**
-     * Constructor injection.
-     *
-     * Why inject NotificationService here and not in TaskController?
-     *   Business logic belongs in the service layer. The controller
-     *   only handles HTTP concerns (request parsing, response wrapping).
-     *   Notification is a side-effect of task creation — a business rule.
-     */
+    // Valid status transitions — enforced at service layer
+    // Same rules shown in CLI UpdateTaskStatusCommand and Swagger docs
+    private static final Map<String, List<String>> VALID_TRANSITIONS = Map.of(
+            "TODO",        List.of("IN_PROGRESS", "CANCELLED"),
+            "IN_PROGRESS", List.of("IN_REVIEW", "CANCELLED"),
+            "IN_REVIEW",   List.of("DONE", "IN_PROGRESS", "CANCELLED"),
+            "DONE",        List.of(),
+            "CANCELLED",   List.of()
+    );
+
     public TaskService(TaskRepository repo, NotificationService notificationService) {
         this.repo = repo;
         this.notificationService = notificationService;
@@ -66,21 +67,12 @@ public class TaskService {
     // ── Create ───────────────────────────────────────────────────────────────
 
     /**
-     * Creates a new task and triggers a notification if an assignee is set.
-     *
-     * Notification logic:
-     *   - Only fires if assignedTo is NOT null (task has an assignee)
-     *   - Only fires if assignee != creator (no point notifying yourself)
-     *   - Uses NotificationService which handles DB persist + WebSocket push
-     *
-     * @param req       validated create task request (title, description, assignedTo)
-     * @param creatorId ID of the authenticated user creating the task
-     * @return TaskDTO of the newly created task
+     * Creates a task and sends a notification to the assignee if:
+     *   - assignedTo is not null (task has an assignee)
+     *   - assignedTo != creatorId (no self-notification)
      */
     @Transactional
     public TaskDTO createTask(CreateTaskRequest req, Long creatorId) {
-
-        // ── Step 1: Build and persist the task ───────────────────────────
         Task t = Task.builder()
                 .title(req.getTitle())
                 .description(req.getDescription())
@@ -93,36 +85,23 @@ public class TaskService {
 
         Task saved = repo.save(t);
 
-        // ── Step 2: Notify the assignee if one was set ───────────────────
-        //
-        // Condition explained:
-        //   req.getAssignedTo() != null      → only if there is an assignee
-        //   !req.getAssignedTo().equals(creatorId) → skip if assigning to yourself
-        //
-        // Why skip self-assignment notification?
-        //   It is valid to create a task and assign it to yourself.
-        //   But notifying yourself "you have been assigned to a task you just created"
-        //   is noise. Skip it.
         if (req.getAssignedTo() != null && !req.getAssignedTo().equals(creatorId)) {
             notificationService.notifyTaskAssigned(
-                    saved.getId(),          // taskId  — for linking in notification
-                    saved.getTitle(),       // taskTitle — shown in notification message
-                    req.getAssignedTo(),    // assigneeId — who receives the notification
-                    creatorId               // assignerId — who created/assigned the task
+                    saved.getId(),
+                    saved.getTitle(),
+                    req.getAssignedTo(),
+                    creatorId
             );
         }
 
         return TaskMapper.toDto(saved);
     }
 
-    // ── Update ───────────────────────────────────────────────────────────────
+    // ── Update (full fields) ─────────────────────────────────────────────────
 
     /**
-     * Updates an existing task's fields.
-     * Only non-null fields in the request are applied (partial update).
-     *
-     * Note: If assignedTo changes, we could also trigger a notification here.
-     * That is a Phase 2 enhancement — tracked in CLAUDE.md.
+     * Partial field update — only non-null fields in the request are applied.
+     * Also sends notification if assignedTo changes to a different user.
      */
     @Transactional
     public Optional<TaskDTO> updateTask(Long id, UpdateTaskRequest req) {
@@ -140,16 +119,56 @@ public class TaskService {
 
         Task updated = repo.save(task);
 
-        // Notify new assignee if assignedTo changed to a different user
+        // Notify new assignee if assignedTo changed
         if (req.getAssignedTo() != null
                 && !req.getAssignedTo().equals(previousAssignee)) {
             notificationService.notifyTaskAssigned(
                     updated.getId(),
                     updated.getTitle(),
                     req.getAssignedTo(),
-                    updated.getCreatedBy()   // treat creator as the "assigner" for updates
+                    updated.getCreatedBy()
             );
         }
+
+        return Optional.of(TaskMapper.toDto(updated));
+    }
+
+    // ── Update Status (PATCH) ────────────────────────────────────────────────
+
+    /**
+     * Changes only the status of a task.
+     * Validates the transition is legal before saving.
+     *
+     * Called by:
+     *   PATCH /api/tasks/{id}/status  (REST — Swagger)
+     *   sprintly task status <id>     (CLI — UpdateTaskStatusCommand)
+     *
+     * @param id        task ID
+     * @param newStatus requested new status string
+     * @return updated TaskDTO, or empty if task not found
+     * @throws IllegalArgumentException if the transition is not allowed
+     */
+    @Transactional
+    public Optional<TaskDTO> updateTaskStatus(Long id, String newStatus) {
+        Optional<Task> opt = repo.findById(id);
+        if (opt.isEmpty()) return Optional.empty();
+
+        Task task = opt.get();
+        String currentStatus = task.getStatus();
+        String normalizedNew = newStatus.toUpperCase().trim();
+
+        // Validate transition
+        List<String> allowed = VALID_TRANSITIONS.getOrDefault(currentStatus, List.of());
+        if (!allowed.contains(normalizedNew)) {
+            throw new IllegalArgumentException(
+                    "Invalid status transition: " + currentStatus + " → " + normalizedNew
+                            + ". Allowed from " + currentStatus + ": " + allowed
+            );
+        }
+
+        task.setStatus(normalizedNew);
+        task.setUpdatedAt(LocalDateTime.now());
+        Task updated = repo.save(task);
 
         return Optional.of(TaskMapper.toDto(updated));
     }

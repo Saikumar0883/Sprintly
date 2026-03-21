@@ -10,7 +10,6 @@ import org.springframework.stereotype.Repository;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -45,7 +44,24 @@ public class JdbcNotificationRepository implements NotificationRepository {
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
         jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            /*
+             * FIX: Use new String[]{"id"} instead of Statement.RETURN_GENERATED_KEYS
+             *
+             * WHY IT WAS BROKEN:
+             *   Statement.RETURN_GENERATED_KEYS tells PostgreSQL to return ALL columns
+             *   as generated keys. So keyHolder received the entire inserted row:
+             *   { id, type, title, message, recipient_id, sender_id, ... }
+             *   Calling keyHolder.getKey() then threw:
+             *   "The getKey method should only be used when a single key is returned.
+             *    The current key entry contains multiple keys: [{id=1, type=TASK_ASSIGNED...}]"
+             *
+             * WHY THE FIX WORKS:
+             *   new String[]{"id"} tells PostgreSQL to return ONLY the id column.
+             *   keyHolder now receives just { id=1 } and getKey() works correctly.
+             *
+             * Same pattern used in JdbcTaskRepository and JdbcUserRepository.
+             */
+            PreparedStatement ps = connection.prepareStatement(sql, new String[]{"id"});
             ps.setString(1, notification.getType());
             ps.setString(2, notification.getTitle());
             ps.setString(3, notification.getMessage());
@@ -81,17 +97,17 @@ public class JdbcNotificationRepository implements NotificationRepository {
             """;
 
         jdbcTemplate.update(sql,
-            notification.getType(),
-            notification.getTitle(),
-            notification.getMessage(),
-            notification.getRecipientId(),
-            notification.getSenderId(),
-            notification.getEntityId(),
-            notification.getEntityType(),
-            notification.isRead(),
-            notification.getCreatedAt(),
-            notification.getReadAt(),
-            notification.getId()
+                notification.getType(),
+                notification.getTitle(),
+                notification.getMessage(),
+                notification.getRecipientId(),
+                notification.getSenderId(),
+                notification.getEntityId(),
+                notification.getEntityType(),
+                notification.isRead(),
+                notification.getCreatedAt(),
+                notification.getReadAt(),
+                notification.getId()
         );
 
         return notification;
@@ -153,18 +169,18 @@ public class JdbcNotificationRepository implements NotificationRepository {
         @Override
         public Notification mapRow(ResultSet rs, int rowNum) throws SQLException {
             return Notification.builder()
-                .id(rs.getLong("id"))
-                .type(rs.getString("type"))
-                .title(rs.getString("title"))
-                .message(rs.getString("message"))
-                .recipientId(rs.getLong("recipient_id"))
-                .senderId(rs.getObject("sender_id", Long.class))
-                .entityId(rs.getObject("entity_id", Long.class))
-                .entityType(rs.getString("entity_type"))
-                .read(rs.getBoolean("read"))
-                .createdAt(rs.getObject("created_at", LocalDateTime.class))
-                .readAt(rs.getObject("read_at", LocalDateTime.class))
-                .build();
+                    .id(rs.getLong("id"))
+                    .type(rs.getString("type"))
+                    .title(rs.getString("title"))
+                    .message(rs.getString("message"))
+                    .recipientId(rs.getLong("recipient_id"))
+                    .senderId(rs.getObject("sender_id", Long.class))
+                    .entityId(rs.getObject("entity_id", Long.class))
+                    .entityType(rs.getString("entity_type"))
+                    .read(rs.getBoolean("read"))
+                    .createdAt(rs.getObject("created_at", LocalDateTime.class))
+                    .readAt(rs.getObject("read_at", LocalDateTime.class))
+                    .build();
         }
     }
 }
