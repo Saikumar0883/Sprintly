@@ -9,14 +9,13 @@ import java.util.concurrent.Callable;
  * Parent command: sprintly task
  *
  * Subcommands:
- *   task list           → list all tasks (ID, Title, Status, Reporter, Assignee)
- *   task create         → create a new task (you become Reporter)
- *   task get <id>       → full details of a task
- *   task update <id>    → update title or description
- *   task status <id>    → change status (assignee only)
- *   task bulk-status    → change status of multiple tasks at once (assignee only)
- *
- * Type 'help' in the REPL for full examples.
+ *   task list         → list all tasks (table)
+ *   task board        → Kanban board view         ← NEW
+ *   task create       → create a new task
+ *   task get <id>     → full task details
+ *   task update <id>  → edit title / description
+ *   task status <id>  → change status (assignee only)
+ *   task bulk-status  → change multiple statuses at once
  */
 @Command(
         name = "task",
@@ -24,20 +23,21 @@ import java.util.concurrent.Callable;
         footer = {
                 "",
                 "Quick reference:",
-                "  task list                      list all tasks",
-                "  task list --status TODO        filter by status",
-                "  task create                    create a new task",
-                "  task get 3                     details of task #3",
-                "  task update 3                  update title/description of task #3",
-                "  task status 3                  change status of task #3 (assignee only)",
-                "  task status 3 DONE             set task #3 directly to DONE",
-                "  task bulk-status               update multiple tasks at once"
+                "  task list                 list all tasks",
+                "  task board                Kanban board view  (/board)",
+                "  task create               create a new task",
+                "  task get <id>             full task details",
+                "  task update <id>          edit title/description",
+                "  task status <id>          change status (interactive)",
+                "  task status <id> DONE     change status directly",
+                "  task bulk-status          update multiple tasks at once"
         },
         subcommands = {
-                CreateTaskCommand.class,
                 ListTasksCommand.class,
+                BoardCommand.class,              // ← NEW
+                CreateTaskCommand.class,
                 GetTaskCommand.class,
-                UpdateTaskCommand.class,           // ← NEW: update title/description
+                UpdateTaskCommand.class,
                 UpdateTaskStatusCommand.class,
                 BulkStatusCommand.class
         }

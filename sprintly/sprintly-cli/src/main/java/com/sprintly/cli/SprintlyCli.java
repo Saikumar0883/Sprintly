@@ -1,14 +1,21 @@
 package com.sprintly.cli;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.sprintly.cli.client.SprintlyClient;
 import com.sprintly.cli.command.LoginCommand;
 import com.sprintly.cli.command.LogoutCommand;
 import com.sprintly.cli.command.RefreshCommand;
 import com.sprintly.cli.command.RegisterCommand;
 import com.sprintly.cli.command.notification.NotificationCommand;
 import com.sprintly.cli.command.task.TaskCommand;
+import com.sprintly.cli.config.CliConfig;
+import com.sprintly.common.dto.ApiResponse;
+import org.jline.reader.Candidate;
+import org.jline.reader.Completer;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.ParsedLine;
 import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
@@ -16,6 +23,10 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
 import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -34,25 +45,104 @@ import java.util.concurrent.Callable;
 )
 public class SprintlyCli implements Callable<Integer> {
 
+    // ── Slash command registry (for Tab completion only) ──────────────────────
+    private static final Map<String, String> SLASH_COMMANDS = new LinkedHashMap<>();
+    static {
+        SLASH_COMMANDS.put("/help",          "Show full command guide");
+        SLASH_COMMANDS.put("/whoami",        "Who am I + unread count");
+        SLASH_COMMANDS.put("/clear",         "Clear terminal screen");
+        SLASH_COMMANDS.put("/exit",          "Exit Sprintly");
+        SLASH_COMMANDS.put("/login",         "Login to your account");
+        SLASH_COMMANDS.put("/logout",        "Logout from all devices");
+        SLASH_COMMANDS.put("/refresh",       "Refresh expired token");
+        SLASH_COMMANDS.put("/register",      "Create a new account");
+        SLASH_COMMANDS.put("/tasks",         "List all tasks (table view)");
+        SLASH_COMMANDS.put("/board",         "Kanban board view");
+        SLASH_COMMANDS.put("/create",        "Create a new task");
+        SLASH_COMMANDS.put("/get",           "Full task details  /get <id>");
+        SLASH_COMMANDS.put("/update",        "Edit title/desc    /update <id>");
+        SLASH_COMMANDS.put("/status",        "Change task status /status <id>");
+        SLASH_COMMANDS.put("/bulk",          "Bulk status update");
+        SLASH_COMMANDS.put("/n",             "Unread notifications (shortcut)");
+        SLASH_COMMANDS.put("/notifications", "Show unread notifications");
+        SLASH_COMMANDS.put("/notif-list",    "Show all notifications");
+        SLASH_COMMANDS.put("/read-all",      "Mark all notifications as read");
+    }
+
+    record SlashCommand(String expansion) {}
+    private static final Map<String, SlashCommand> EXPANSIONS = new LinkedHashMap<>();
+    static {
+        EXPANSIONS.put("/login",         new SlashCommand("login"));
+        EXPANSIONS.put("/logout",        new SlashCommand("logout"));
+        EXPANSIONS.put("/refresh",       new SlashCommand("refresh"));
+        EXPANSIONS.put("/register",      new SlashCommand("register"));
+        EXPANSIONS.put("/tasks",         new SlashCommand("task list"));
+        EXPANSIONS.put("/board",         new SlashCommand("task board"));
+        EXPANSIONS.put("/create",        new SlashCommand("task create"));
+        EXPANSIONS.put("/bulk",          new SlashCommand("task bulk-status"));
+        EXPANSIONS.put("/n",             new SlashCommand("notification unread"));
+        EXPANSIONS.put("/notifications", new SlashCommand("notification unread"));
+        EXPANSIONS.put("/notif-list",    new SlashCommand("notification list"));
+        EXPANSIONS.put("/read-all",      new SlashCommand("notification read-all"));
+    }
+
+    private static int unreadCount = 0;
+    private static final SprintlyClient client = new SprintlyClient();
+
+    // ─────────────────────────────────────────────────────────────────────────
+
     public static void main(String[] args) {
         if (args.length > 0) {
-            int exitCode = new CommandLine(new SprintlyCli()).execute(args);
-            System.exit(exitCode);
+            new CommandLine(new SprintlyCli()).execute(args);
         } else {
             startRepl();
         }
     }
 
     private static void startRepl() {
-        printWelcome();
         try {
             Terminal terminal = TerminalBuilder.builder().system(true).build();
-            LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
+
+            // ── Tab completer for slash commands ──────────────────────────────
+            // When user types "/" and presses Tab, shows matching slash commands.
+            // Each candidate shows the command name + description as a hint.
+            Completer slashCompleter = (reader, line, candidates) -> {
+                String word = line.word();
+                if (word.startsWith("/")) {
+                    SLASH_COMMANDS.forEach((cmd, desc) -> {
+                        if (cmd.startsWith(word)) {
+                            candidates.add(new Candidate(
+                                    cmd,    // value inserted on Tab
+                                    cmd,    // display text
+                                    null,   // group
+                                    desc,   // description shown next to candidate
+                                    null, null, true
+                            ));
+                        }
+                    });
+                }
+            };
+
+            LineReader reader = LineReaderBuilder.builder()
+                    .terminal(terminal)
+                    .completer(slashCompleter)
+                    // Persistent history — survives across sessions
+                    .variable(LineReader.HISTORY_FILE,
+                            Paths.get(System.getProperty("user.home"), ".sprintly_history"))
+                    .option(LineReader.Option.HISTORY_IGNORE_DUPS, true)
+                    // Show all completions on first Tab press
+                    .option(LineReader.Option.AUTO_LIST, true)
+                    // Show completions inline as a menu
+                    .option(LineReader.Option.AUTO_MENU, true)
+                    .build();
+
+            printWelcome();
+            refreshUnreadCount();
 
             while (true) {
-                String line = null;
+                String line;
                 try {
-                    line = reader.readLine("sprintly> ");
+                    line = reader.readLine(buildPrompt());
                 } catch (UserInterruptException e) {
                     continue;
                 } catch (EndOfFileException e) {
@@ -63,143 +153,155 @@ public class SprintlyCli implements Callable<Integer> {
                 line = line.trim();
                 if (line.isEmpty()) continue;
 
-                // Handle exit
-                if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) {
-                    System.out.println("  Goodbye! 👋");
+                // Exit
+                if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")
+                        || line.equals("/exit") || line.equals("/quit")) {
+                    System.out.println("  Goodbye!");
                     break;
                 }
 
-                // Handle 'help' keyword in REPL — show full command guide
+                // help keyword
                 if (line.equalsIgnoreCase("help")) {
                     printHelp();
                     continue;
                 }
 
-                org.jline.reader.ParsedLine pl = reader.getParser().parse(line, 0);
-                String[] cmdArgs = pl.words().toArray(new String[0]);
-                new CommandLine(new SprintlyCli()).execute(cmdArgs);
+                // Slash command
+                if (line.startsWith("/")) {
+                    handleSlashCommand(line, terminal);
+                    if (line.startsWith("/n") || line.startsWith("/notif")
+                            || line.startsWith("/read") || line.startsWith("/login")
+                            || line.startsWith("/logout")) {
+                        refreshUnreadCount();
+                    }
+                    continue;
+                }
+
+                // Normal Picocli command
+                ParsedLine pl = reader.getParser().parse(line, 0);
+                new CommandLine(new SprintlyCli()).execute(pl.words().toArray(new String[0]));
+
+                if (line.startsWith("login") || line.startsWith("notification")
+                        || line.startsWith("refresh")) {
+                    refreshUnreadCount();
+                }
             }
+
+            terminal.close();
+
         } catch (IOException e) {
-            System.err.println("Error initializing terminal: " + e.getMessage());
+            System.err.println("Terminal error: " + e.getMessage());
         }
+    }
+
+    // ── Slash command execution ───────────────────────────────────────────────
+
+    private static void handleSlashCommand(String input, Terminal terminal) {
+        String[] parts  = input.split("\\s+", 2);
+        String slashCmd = parts[0].toLowerCase();
+        String rest     = parts.length > 1 ? parts[1].trim() : "";
+
+        // Built-in specials
+        switch (slashCmd) {
+            case "/help"   -> { printHelp();   return; }
+            case "/whoami" -> { printWhoAmI(); return; }
+            case "/clear"  -> {
+                terminal.writer().print("\033[H\033[J");
+                terminal.writer().flush();
+                return;
+            }
+        }
+
+        // Commands that take passthrough args
+        if (slashCmd.equals("/status")) {
+            executeExpanded("task status" + (rest.isEmpty() ? "" : " " + rest)); return;
+        }
+        if (slashCmd.equals("/get")) {
+            executeExpanded("task get" + (rest.isEmpty() ? "" : " " + rest)); return;
+        }
+        if (slashCmd.equals("/update")) {
+            executeExpanded("task update" + (rest.isEmpty() ? "" : " " + rest)); return;
+        }
+
+        // Registry lookup
+        SlashCommand sc = EXPANSIONS.get(slashCmd);
+        if (sc != null) {
+            executeExpanded(sc.expansion());
+            return;
+        }
+
+        System.out.println("\n  Unknown: " + slashCmd
+                + "  \u2014 type / then Tab to see commands.\n");
+    }
+
+    private static void executeExpanded(String commandStr) {
+        try {
+            org.jline.reader.Parser p = new org.jline.reader.impl.DefaultParser();
+            ParsedLine pl = p.parse(commandStr, commandStr.length());
+            new CommandLine(new SprintlyCli()).execute(pl.words().toArray(new String[0]));
+        } catch (Exception e) {
+            new CommandLine(new SprintlyCli()).execute(commandStr.split("\\s+"));
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static String buildPrompt() {
+        return unreadCount > 0
+                ? "sprintly [" + unreadCount + " unread]> "
+                : "sprintly> ";
+    }
+
+    private static void refreshUnreadCount() {
+        if (!client.isLoggedIn()) { unreadCount = 0; return; }
+        try {
+            ApiResponse<Integer> r = client.get("/notifications/unread/count",
+                    new TypeReference<>() {}, true);
+            unreadCount = (r != null && r.isSuccess() && r.getData() != null)
+                    ? r.getData() : 0;
+        } catch (Exception ignored) { unreadCount = 0; }
+    }
+
+    private static void printWhoAmI() {
+        CliConfig cfg = CliConfig.load();
+        System.out.println();
+        if (cfg == null || cfg.getAccessToken() == null) {
+            System.out.println("  Not logged in.  Run: /login  or  login");
+        } else {
+            refreshUnreadCount();
+            System.out.printf("  Logged in as : %s%n",
+                    cfg.getName()  != null ? cfg.getName()  : "(unknown)");
+            System.out.printf("  Email        : %s%n",
+                    cfg.getEmail() != null ? cfg.getEmail() : "(unknown)");
+            System.out.printf("  Unread notifs: %s%n",
+                    unreadCount > 0 ? unreadCount + " \uD83D\uDD14" : "none \u2713");
+        }
+        System.out.println();
     }
 
     private static void printWelcome() {
         System.out.println();
-        System.out.println("  ⚡  Welcome to Sprintly CLI!");
-        System.out.println("  ─────────────────────────────────────────────");
-        System.out.println("  Type 'help' for a full command guide.");
-        System.out.println("  Type 'exit' or 'quit' to leave.");
+        System.out.println("  \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
+        System.out.println("  \u2551   \u26A1  Sprintly CLI  \u2014  Task Management      \u2551");
+        System.out.println("  \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D");
+        System.out.println();
+        System.out.println("  Type /    then Tab  \u2192  see all slash commands");
+        System.out.println("  Press \u2191\u2193           \u2192  navigate command history");
+        System.out.println("  Type help or /exit  \u2192  get help or quit");
         System.out.println();
     }
 
-    /**
-     * Full help guide shown when user types 'help' in REPL.
-     * Covers every command with syntax, options, and examples.
-     */
     private static void printHelp() {
         System.out.println();
-        System.out.println("  ╔══════════════════════════════════════════════════════════════╗");
-        System.out.println("  ║              SPRINTLY CLI — COMMAND GUIDE                    ║");
-        System.out.println("  ╚══════════════════════════════════════════════════════════════╝");
-
+        System.out.printf("  %-20s  %s%n", "SLASH COMMAND", "DESCRIPTION");
+        System.out.println("  " + "\u2500".repeat(62));
+        SLASH_COMMANDS.forEach((cmd, desc) ->
+                System.out.printf("  %-20s  %s%n", cmd, desc));
         System.out.println();
-        System.out.println("  ── AUTH ──────────────────────────────────────────────────────");
-        System.out.println();
-        System.out.println("  register");
-        System.out.println("    Create a new Sprintly account.");
-        System.out.println("    Example:  register");
-        System.out.println("    Example:  register --name \"Ravi\" --email ravi@test.com --password Pass@123");
-        System.out.println();
-        System.out.println("  login");
-        System.out.println("    Login to Sprintly. Saves token to ~/.sprintly-cli.json");
-        System.out.println("    Example:  login");
-        System.out.println("    Example:  login --email ravi@test.com --password Pass@123");
-        System.out.println();
-        System.out.println("  logout");
-        System.out.println("    Logout from all devices. Clears saved token.");
-        System.out.println("    Example:  logout");
-        System.out.println();
-        System.out.println("  refresh");
-        System.out.println("    Refresh your access token using the saved refresh token.");
-        System.out.println("    Use this if you get 'Session expired' errors.");
-        System.out.println("    Example:  refresh");
-        System.out.println();
-
-        System.out.println("  ── TASKS ─────────────────────────────────────────────────────");
-        System.out.println();
-        System.out.println("  task list");
-        System.out.println("    List all tasks (ID, Title, Status, Reporter, Assignee).");
-        System.out.println("    Example:  task list");
-        System.out.println("    Example:  task list --status TODO");
-        System.out.println("    Example:  task list --status IN_PROGRESS");
-        System.out.println();
-        System.out.println("  task create");
-        System.out.println("    Create a new task. Prompts for title, description, assignee.");
-        System.out.println("    You (the logged-in user) become the Reporter automatically.");
-        System.out.println("    The assignee will receive a real-time notification.");
-        System.out.println("    Example:  task create");
-        System.out.println("    Example:  task create --title \"Fix bug\" --description \"Details here\"");
-        System.out.println();
-        System.out.println("  task get <id>");
-        System.out.println("    Get full details of a task: title, status, reporter, assignee,");
-        System.out.println("    description, created/updated timestamps.");
-        System.out.println("    Example:  task get 3");
-        System.out.println("    Example:  task get        (prompts for ID)");
-        System.out.println();
-        System.out.println("  task update <id>");
-        System.out.println("    Update the title or description of a task.");
-        System.out.println("    Example:  task update 3");
-        System.out.println("    Example:  task update 3 --title \"New title\"");
-        System.out.println("    Example:  task update 3 --description \"Updated description\"");
-        System.out.println("    Example:  task update 3 --title \"New\" --description \"New desc\"");
-        System.out.println();
-        System.out.println("  task status <id> [newStatus]");
-        System.out.println("    Change the status of a task. ONLY the assignee can do this.");
-        System.out.println("    Valid transitions:");
-        System.out.println("      TODO        → IN_PROGRESS, CANCELLED");
-        System.out.println("      IN_PROGRESS → IN_REVIEW, CANCELLED");
-        System.out.println("      IN_REVIEW   → DONE, IN_PROGRESS, CANCELLED");
-        System.out.println("    When moved to DONE, the reporter gets notified automatically.");
-        System.out.println("    Example:  task status 3              (interactive menu)");
-        System.out.println("    Example:  task status 3 IN_PROGRESS  (direct)");
-        System.out.println("    Example:  task status 3 DONE");
-        System.out.println();
-        System.out.println("  task bulk-status");
-        System.out.println("    Update the status of multiple tasks at once.");
-        System.out.println("    Shows your assigned tasks → you pick which ones to update.");
-        System.out.println("    Example:  task bulk-status");
-        System.out.println("    Example:  task bulk-status --status IN_PROGRESS");
-        System.out.println();
-
-        System.out.println("  ── NOTIFICATIONS ─────────────────────────────────────────────");
-        System.out.println();
-        System.out.println("  notification unread");
-        System.out.println("    Show your unread notifications. Prompts to mark all as read.");
-        System.out.println("    Example:  notification unread");
-        System.out.println();
-        System.out.println("  notification list");
-        System.out.println("    Show ALL notifications (read ✓ and unread 🔔).");
-        System.out.println("    Example:  notification list");
-        System.out.println();
-        System.out.println("  notification read <id>");
-        System.out.println("    Mark a single notification as read.");
-        System.out.println("    Example:  notification read 5");
-        System.out.println();
-        System.out.println("  notification read-all");
-        System.out.println("    Mark all notifications as read at once.");
-        System.out.println("    Example:  notification read-all");
-        System.out.println();
-
-        System.out.println("  ── TIPS ──────────────────────────────────────────────────────");
-        System.out.println();
-        System.out.println("  • If you see 'Session expired': run  refresh  or  logout + login");
-        System.out.println("  • If you see 'Access denied' on tasks: your token may be expired.");
-        System.out.println("    Run: refresh");
-        System.out.println("  • Config is stored at: ~/.sprintly-cli.json");
-        System.out.println("    Delete it to force a fresh login: rm ~/.sprintly-cli.json");
-        System.out.println("  • Add --help to any command for Picocli usage info.");
-        System.out.println("    Example:  task status --help");
+        System.out.println("  Full commands also work: task list, task board, notification unread");
+        System.out.println("  Tab:     press after / to autocomplete slash commands");
+        System.out.println("  History: press \u2191 \u2193 to recall previous commands");
+        System.out.println("  Badge:   prompt shows [N unread] when you have notifications");
         System.out.println();
     }
 
