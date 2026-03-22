@@ -8,6 +8,7 @@ import java.util.Optional;
 public interface TaskRepository {
     Optional<Task> findById(Long id);
     List<Task> findAll();
+    List<Task> findByAssigneeId(Long assigneeId);  // ← NEW: for assignee-only status restriction
     Task save(Task task);
     boolean deleteById(Long id);
 }

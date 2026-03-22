@@ -1,22 +1,19 @@
 package com.sprintly.task.entity;
 
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 /**
  * Task entity corresponding to the `tasks` table.
  *
- * P2 Fix: Added assigneeName and createdByName fields.
+ * Reporter = the person who created the task.
+ *   - reporterId maps to DB column `created_by` (same column, explicit name)
+ *   - reporterName comes from LEFT JOIN on users table (not a DB column)
+ *   - No new DB column needed — reporter IS the creator
  *
- * These are NOT columns in the tasks table — they come from
- * LEFT JOINs in JdbcTaskRepository. They are populated at
- * query time and carried through to TaskDTO for display.
- *
- * This is a common pattern with JDBC/JdbcTemplate:
- *   Entity carries both its own columns AND joined-in display fields.
- *   JPA would handle this differently via @ManyToOne relationships,
- *   but since we use raw JDBC, we carry the names directly.
+ * assigneeName / reporterName / createdByName:
+ *   Not stored in DB — populated via LEFT JOIN in JdbcTaskRepository.
+ *   Avoids N+1 API calls from the CLI.
  */
 @Getter
 @Setter
@@ -30,11 +27,15 @@ public class Task {
     private String description;
     private String status;           // TODO, IN_PROGRESS, IN_REVIEW, DONE, CANCELLED
 
-    private Long createdBy;          // FK → users.id
-    private String createdByName;    // ← from JOIN: users.name WHERE id = created_by
+    // Creator / Reporter (same person, two names for domain clarity)
+    private Long createdBy;          // DB column: created_by
+    private Long reporterId;         // Same value as createdBy — explicit reporter concept
+    private String createdByName;    // From LEFT JOIN users on created_by (legacy display)
+    private String reporterName;     // Same as createdByName — reporter-named alias
 
-    private Long assignedTo;         // FK → users.id (nullable — means unassigned)
-    private String assigneeName;     // ← from JOIN: users.name WHERE id = assigned_to
+    // Assignee
+    private Long assignedTo;         // DB column: assigned_to (nullable = unassigned)
+    private String assigneeName;     // From LEFT JOIN users on assigned_to
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

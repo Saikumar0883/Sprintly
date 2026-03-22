@@ -6,16 +6,17 @@ import com.sprintly.task.entity.Task;
 /**
  * Maps between Task entity and TaskDTO.
  *
- * P2 Fix: Maps the new assigneeName and createdByName fields
- * that are populated by JdbcTaskRepository's JOIN queries.
+ * Reporter mapping:
+ *   reporterId   = task.createdBy (same DB value, domain-named alias)
+ *   reporterName = task.reporterName (from LEFT JOIN in JdbcTaskRepository)
  */
 public class TaskMapper {
 
     /**
      * Convert Task entity → TaskDTO for API responses.
      *
-     * assigneeName and createdByName come from JdbcTaskRepository
-     * JOIN queries. They will be null if:
+     * reporterName and assigneeName come from JdbcTaskRepository LEFT JOIN queries.
+     * They will be null if:
      *   - assignedTo is null (unassigned task)
      *   - The joined user no longer exists in the DB
      */
@@ -26,10 +27,11 @@ public class TaskMapper {
                 .title(t.getTitle())
                 .description(t.getDescription())
                 .status(t.getStatus())
-                .createdBy(t.getCreatedBy())
-                .createdByName(t.getCreatedByName())    // ← NEW
+                // Reporter: use reporterId if set, fallback to createdBy
+                .reporterId(t.getReporterId() != null ? t.getReporterId() : t.getCreatedBy())
+                .reporterName(t.getReporterName() != null ? t.getReporterName() : t.getCreatedByName())
                 .assignedTo(t.getAssignedTo())
-                .assigneeName(t.getAssigneeName())      // ← NEW
+                .assigneeName(t.getAssigneeName())
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
                 .build();
@@ -44,7 +46,8 @@ public class TaskMapper {
                 .title(dto.getTitle())
                 .description(dto.getDescription())
                 .status(dto.getStatus())
-                .createdBy(dto.getCreatedBy())
+                .createdBy(dto.getReporterId())
+                .reporterId(dto.getReporterId())
                 .assignedTo(dto.getAssignedTo())
                 .build();
     }

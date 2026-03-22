@@ -10,10 +10,35 @@ import picocli.CommandLine.Option;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-@Command(name = "list", description = "List all tasks")
+/**
+ * CLI command: sprintly task list
+ *
+ * Lists all tasks with: ID, Title, Status, Reporter, Assignee
+ *
+ * Usage:
+ *   task list
+ *   task list --status TODO
+ *   task list --status IN_PROGRESS
+ *
+ * Reporter = person who created the task (auto-set).
+ * Assignee = person the task is assigned to (null = Unassigned).
+ */
+@Command(
+        name = "list",
+        description = "List all tasks with reporter and assignee",
+        footer = {
+                "",
+                "Examples:",
+                "  task list",
+                "  task list --status TODO",
+                "  task list --status IN_PROGRESS",
+                "  task list --status DONE"
+        }
+)
 public class ListTasksCommand implements Callable<Integer> {
 
-    @Option(names = {"-s", "--status"}, description = "Filter by status (TODO, IN_PROGRESS, IN_REVIEW, DONE)")
+    @Option(names = {"-s", "--status"},
+            description = "Filter by status: TODO, IN_PROGRESS, IN_REVIEW, DONE, CANCELLED")
     private String status;
 
     private final SprintlyClient client = new SprintlyClient();
@@ -21,65 +46,72 @@ public class ListTasksCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
 
-        // ── P2 FIX 1: Login guard ─────────────────────────────────────────────
         if (!client.isLoggedIn()) {
             System.err.println();
-            System.err.println("  ✖  You are not logged in.");
-            System.err.println("     Run:  sprintly login");
+            System.err.println("  ✖  You are not logged in. Run: sprintly login");
             System.err.println();
             return 1;
         }
-        // ─────────────────────────────────────────────────────────────────────
 
         ApiResponse<List<TaskDTO>> response =
                 client.get("/tasks", new TypeReference<>() {}, true);
 
         if (response == null || !response.isSuccess()) {
-            System.err.println("  ✖  Failed to fetch tasks: "
-                    + (response != null ? response.getMessage() : "No response from server"));
+            String msg = response != null ? response.getMessage() : "No response from server";
+            // Specific hint for expired token
+            if (msg != null && (msg.contains("expired") || msg.contains("Session"))) {
+                System.err.println("  ✖  " + msg);
+                System.err.println("     Run: refresh    (to get a new token)");
+                System.err.println("     Or:  logout → login");
+            } else {
+                System.err.println("  ✖  Failed to fetch tasks: " + msg);
+            }
             return 1;
         }
 
         List<TaskDTO> tasks = response.getData();
 
         if (tasks == null || tasks.isEmpty()) {
+            System.out.println();
             System.out.println("  No tasks found.");
+            System.out.println();
             return 0;
         }
 
-        // Optional client-side filter by status flag
+        // Client-side status filter
         if (status != null && !status.isBlank()) {
-            tasks = tasks.stream()
-                    .filter(t -> status.equalsIgnoreCase(t.getStatus()))
-                    .toList();
+            final String s = status.toUpperCase();
+            tasks = tasks.stream().filter(t -> s.equals(t.getStatus())).toList();
             if (tasks.isEmpty()) {
-                System.out.println("  No tasks found with status: " + status.toUpperCase());
+                System.out.println("  No tasks found with status: " + s);
                 return 0;
             }
         }
 
-        // ── P2 FIX 2: Print assigneeName instead of raw ID ───────────────────
-        // Previously: "Assignee" column showed "5" (a meaningless number)
-        // Now:        "Assignee" column shows "Ravi Kumar" or "Unassigned"
+        // ── Print table with Reporter column ─────────────────────────────────
         System.out.println();
-        System.out.printf("  %-5s  %-30s  %-14s  %-20s%n",
-                "ID", "Title", "Status", "Assignee");
-        System.out.println("  " + "─".repeat(75));
+        System.out.printf("  %-5s  %-28s  %-13s  %-16s  %-16s%n",
+                "ID", "Title", "Status", "Reporter", "Assignee");
+        System.out.println("  " + "─".repeat(86));
 
         for (TaskDTO task : tasks) {
-            // ── P2 FIX: Use assigneeName, fall back to "Unassigned" if null ──
-            String assigneeDisplay = (task.getAssigneeName() != null && !task.getAssigneeName().isBlank())
+            String reporter = task.getReporterName() != null
+                    ? task.getReporterName()
+                    : (task.getReporterId() != null ? "#" + task.getReporterId() : "Unknown");
+
+            String assignee = task.getAssigneeName() != null
                     ? task.getAssigneeName()
                     : "Unassigned";
 
-            System.out.printf("  %-5d  %-30s  %-14s  %-20s%n",
+            System.out.printf("  %-5d  %-28s  %-13s  %-16s  %-16s%n",
                     task.getId(),
-                    truncate(task.getTitle(), 30),
+                    truncate(task.getTitle(), 28),
                     task.getStatus(),
-                    truncate(assigneeDisplay, 20));
+                    truncate(reporter, 16),
+                    truncate(assignee, 16));
         }
 
-        System.out.println("  " + "─".repeat(75));
+        System.out.println("  " + "─".repeat(86));
         System.out.printf("  Total: %d task(s)%n%n", tasks.size());
 
         return 0;

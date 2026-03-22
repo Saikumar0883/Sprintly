@@ -18,23 +18,25 @@ import java.util.stream.Collectors;
 /**
  * Centralized exception handler for the entire application.
  *
- * Catches exceptions from ALL modules (auth, user, task, notification)
- * and converts them into consistent ErrorResponse JSON bodies.
+ * Added handlers:
  *
- * Handles:
- *   TaskFlowException subclasses  → uses the status embedded in the exception
- *   MethodArgumentNotValidException → 400 with per-field validation errors
- *   AccessDeniedException          → 403 Forbidden
- *   Exception (catch-all)          → 500 Internal Server Error
+ *   IllegalStateException → 403 Forbidden
+ *     Thrown by TaskService.updateTaskStatus() when the caller is not the assignee.
+ *     "Only the assignee can update the status of task #X"
+ *
+ *   IllegalArgumentException → 400 Bad Request
+ *     Thrown by TaskService.updateTaskStatus() for invalid status transitions.
+ *     "Invalid status transition: TODO → DONE"
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    /** Handles all TaskFlowException subclasses (ResourceNotFoundException, etc.) */
+    // ── TaskFlowException (our custom hierarchy) ──────────────────────────────
+
     @ExceptionHandler(TaskFlowException.class)
-    public ResponseEntity<ErrorResponse> handleTaskFlowException(TaskFlowException ex,
-                                                                  HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleTaskFlowException(
+            TaskFlowException ex, HttpServletRequest request) {
         log.warn("TaskFlowException: {} — {}", ex.getClass().getSimpleName(), ex.getMessage());
         ErrorResponse error = ErrorResponse.builder()
                 .status(ex.getStatus().value())
@@ -45,22 +47,58 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(error);
     }
 
-    /** Handles @Valid / @Validated failures — returns field-level errors */
+    // ── IllegalStateException → 403 ───────────────────────────────────────────
+
+    /**
+     * Thrown by TaskService when a non-assignee tries to update task status.
+     * Maps to HTTP 403 Forbidden so both Swagger UI and CLI get a clean error message.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalStateException(
+            IllegalStateException ex, HttpServletRequest request) {
+        log.warn("Forbidden action at {} {}: {}", request.getMethod(),
+                request.getRequestURI(), ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.FORBIDDEN.value())
+                .error("Forbidden")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    // ── IllegalArgumentException → 400 ───────────────────────────────────────
+
+    /**
+     * Thrown by TaskService when an invalid status transition is requested.
+     * Maps to HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+            IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("Bad request at {} {}: {}", request.getMethod(),
+                request.getRequestURI(), ex.getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Bad Request")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    // ── @Valid validation failures → 400 ─────────────────────────────────────
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(
             MethodArgumentNotValidException ex, HttpServletRequest request) {
-
-        Map<String, String> fieldErrors = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
+        Map<String, String> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
                         FieldError::getField,
                         fe -> fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "Invalid value",
-                        (a, b) -> a   // keep first error per field if duplicates
+                        (a, b) -> a
                 ));
-
         log.warn("Validation failed for {}: {}", request.getRequestURI(), fieldErrors);
-
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Validation Failed")
@@ -68,41 +106,37 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .fieldErrors(fieldErrors)
                 .build();
-
         return ResponseEntity.badRequest().body(error);
     }
 
-    /** Handles @PreAuthorize / role check failures */
+    // ── Spring Security @PreAuthorize → 403 ──────────────────────────────────
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDeniedException(
             AccessDeniedException ex, HttpServletRequest request) {
-
         log.warn("Access denied: {} {}", request.getMethod(), request.getRequestURI());
-
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.FORBIDDEN.value())
                 .error("Forbidden")
                 .message("You do not have permission to perform this action")
                 .path(request.getRequestURI())
                 .build();
-
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
-    /** Catch-all for unexpected exceptions */
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex,
-                                                                 HttpServletRequest request) {
-        log.error("Unhandled exception at {} {}: {}", request.getMethod(),
-                request.getRequestURI(), ex.getMessage(), ex);
+    // ── Catch-all → 500 ──────────────────────────────────────────────────────
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGenericException(
+            Exception ex, HttpServletRequest request) {
+        log.error("Unhandled exception at {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error("Internal Server Error")
                 .message("An unexpected error occurred. Please try again later.")
                 .path(request.getRequestURI())
                 .build();
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 }

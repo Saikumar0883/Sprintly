@@ -22,50 +22,77 @@ public class JdbcTaskRepository implements TaskRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    // ── P2 FIX: RowMapper now reads assigneeName from the JOIN ───────────────
-    //
-    // Previously: SELECT * FROM tasks
-    //   → assignedTo was a Long (just an ID)
-    //   → CLI displayed: "Assignee: 5"
-    //
-    // Now: SELECT tasks.*, users.name AS assignee_name FROM tasks
-    //      LEFT JOIN users ON tasks.assigned_to = users.id
-    //   → assigneeName is the actual name ("Ravi Kumar")
-    //   → CLI displays: "Assignee: Ravi Kumar"
-    //
-    // LEFT JOIN: tasks with no assignee still return — assignee_name is just NULL.
-    // The CLI shows "Unassigned" when assigneeName is null.
+    /**
+     * RowMapper with TWO LEFT JOINs on users:
+     *   assignee → gets assigneeName
+     *   reporter → gets reporterName (same as createdByName)
+     *
+     * Both JOINs are LEFT JOINs so:
+     *   - Unassigned tasks still appear (assignee JOIN returns null)
+     *   - Tasks where creator was deleted still appear (reporter JOIN returns null)
+     */
     private final RowMapper<Task> rowMapper = (rs, rowNum) -> {
         Task t = new Task();
         t.setId(rs.getLong("id"));
         t.setTitle(rs.getString("title"));
         t.setDescription(rs.getString("description"));
         t.setStatus(rs.getString("status"));
-        t.setCreatedBy(rs.getLong("created_by"));
 
-        // Handle nullable assigned_to (getLong returns 0 for SQL NULL)
+        long createdBy = rs.getLong("created_by");
+        t.setCreatedBy(createdBy);
+        t.setReporterId(createdBy);   // reporter = creator
+
+        // Handle nullable assigned_to
         long assignedTo = rs.getLong("assigned_to");
         t.setAssignedTo(rs.wasNull() ? null : assignedTo);
 
-        // ── P2 FIX: Read the joined assignee name ────────────────────────────
-        t.setAssigneeName(rs.getString("assignee_name")); // null if unassigned
-        // ─────────────────────────────────────────────────────────────────────
+        // Names from JOINs
+        t.setAssigneeName(rs.getString("assignee_name"));
+        t.setReporterName(rs.getString("reporter_name"));
+        t.setCreatedByName(rs.getString("reporter_name")); // keep legacy field in sync
 
-        t.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
-        t.setUpdatedAt(rs.getTimestamp("updated_at").toLocalDateTime());
+        Timestamp createdAt = rs.getTimestamp("created_at");
+        if (createdAt != null) t.setCreatedAt(createdAt.toLocalDateTime());
+
+        Timestamp updatedAt = rs.getTimestamp("updated_at");
+        if (updatedAt != null) t.setUpdatedAt(updatedAt.toLocalDateTime());
+
         return t;
     };
 
-    // ── P2 FIX: All SELECT queries now use LEFT JOIN ──────────────────────────
+    /**
+     * Base SELECT with two LEFT JOINs:
+     *   assignee: gets the name of whoever the task is assigned to
+     *   reporter: gets the name of whoever created the task
+     *
+     * Using table aliases to avoid column name conflicts.
+     */
+    private static final String SELECT_WITH_NAMES = """
+            SELECT
+                t.id, t.title, t.description, t.status,
+                t.created_by, t.assigned_to,
+                t.created_at, t.updated_at,
+                assignee.name  AS assignee_name,
+                reporter.name  AS reporter_name
+            FROM tasks t
+            LEFT JOIN users assignee ON t.assigned_to = assignee.id
+            LEFT JOIN users reporter ON t.created_by  = reporter.id
+            """;
+
+    // ── findAll ───────────────────────────────────────────────────────────────
+
+    @Override
+    public List<Task> findAll() {
+        return jdbcTemplate.query(
+                SELECT_WITH_NAMES + " ORDER BY t.created_at DESC",
+                rowMapper);
+    }
+
+    // ── findById ──────────────────────────────────────────────────────────────
 
     @Override
     public Optional<Task> findById(Long id) {
-        String sql = """
-                SELECT t.*, u.name AS assignee_name
-                FROM tasks t
-                LEFT JOIN users u ON t.assigned_to = u.id
-                WHERE t.id = ?
-                """;
+        String sql = SELECT_WITH_NAMES + " WHERE t.id = ?";
         try {
             Task task = jdbcTemplate.queryForObject(sql, rowMapper, id);
             return Optional.ofNullable(task);
@@ -74,25 +101,28 @@ public class JdbcTaskRepository implements TaskRepository {
         }
     }
 
+    // ── findByAssigneeId ──────────────────────────────────────────────────────
+
+    /**
+     * Returns all tasks assigned to a specific user.
+     * Used by UpdateTaskStatusCommand to show only tasks the current user
+     * can update (only assignees can change status).
+     */
     @Override
-    public List<Task> findAll() {
-        String sql = """
-                SELECT t.*, u.name AS assignee_name
-                FROM tasks t
-                LEFT JOIN users u ON t.assigned_to = u.id
-                ORDER BY t.created_at DESC
-                """;
-        return jdbcTemplate.query(sql, rowMapper);
+    public List<Task> findByAssigneeId(Long assigneeId) {
+        String sql = SELECT_WITH_NAMES + " WHERE t.assigned_to = ? ORDER BY t.created_at DESC";
+        return jdbcTemplate.query(sql, rowMapper, assigneeId);
     }
 
-    // ── INSERT / UPDATE do NOT change — assignee_name is not a column ─────────
+    // ── save (INSERT / UPDATE) ────────────────────────────────────────────────
 
     @Override
     public Task save(Task task) {
         if (task.getId() == null) {
-            // INSERT — only real columns, never assigneeName (it's not a DB column)
+            // INSERT
             String sql = """
-                    INSERT INTO tasks (title, description, status, created_by, assigned_to, created_at, updated_at)
+                    INSERT INTO tasks
+                        (title, description, status, created_by, assigned_to, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """;
             KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -113,7 +143,7 @@ public class JdbcTaskRepository implements TaskRepository {
             }, keyHolder);
             task.setId(keyHolder.getKey().longValue());
         } else {
-            // UPDATE — again, never include assigneeName in SET clause
+            // UPDATE
             String sql = """
                     UPDATE tasks
                     SET title = ?, description = ?, status = ?, assigned_to = ?, updated_at = ?
@@ -130,10 +160,11 @@ public class JdbcTaskRepository implements TaskRepository {
         return task;
     }
 
+    // ── deleteById ────────────────────────────────────────────────────────────
+
     @Override
     public boolean deleteById(Long id) {
-        String sql = "DELETE FROM tasks WHERE id = ?";
-        int rows = jdbcTemplate.update(sql, id);
+        int rows = jdbcTemplate.update("DELETE FROM tasks WHERE id = ?", id);
         return rows > 0;
     }
 }
