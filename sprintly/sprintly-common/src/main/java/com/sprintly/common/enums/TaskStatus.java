@@ -5,7 +5,7 @@ package com.sprintly.common.enums;
  * Strategy pattern uses these to validate legal transitions.
  *
  *  TODO ──► IN_PROGRESS ──► IN_REVIEW ──► DONE
- *                │                          │
+ *                │            │               │
  *                └──────────────────────────► CANCELLED
  */
 public enum TaskStatus {

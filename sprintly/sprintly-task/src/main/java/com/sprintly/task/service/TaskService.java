@@ -61,13 +61,11 @@ public class TaskService {
 
     // ── Transition helpers ────────────────────────────────────────────────────
 
-    public boolean isValidTransition(String current, String next) {
+    public boolean isValidTransition(TaskStatus current, TaskStatus next) {
         if (current == null || next == null) return false;
-        current = current.toUpperCase();
-        next    = next.toUpperCase();
         if (TERMINAL_STATES.contains(current)) return false;
-        if (current.equals(next)) return false;
-        if ("CANCELLED".equals(next)) return true;
+        if (current == next) return false;
+        if (next == TaskStatus.CANCELLED) return true;
         Integer cr = STATUS_RANK.get(current);
         Integer nr = STATUS_RANK.get(next);
         if (cr == null || nr == null) return false;

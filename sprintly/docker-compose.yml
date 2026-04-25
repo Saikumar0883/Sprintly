@@ -1,0 +1,180 @@
+# =============================================================================
+# Sprintly — Docker Compose Stack
+# =============================================================================
+#
+# Services:
+#   sprintly-db   PostgreSQL database
+#   sprintly-app  Spring Boot backend (built from source)
+#
+# CLI runs on the HOST machine (not in a container) because:
+#   - It needs an interactive TTY for JLine (keyboard input, history, Tab)
+#   - Running interactive Java CLI apps inside Docker requires -it flags and
+#     still breaks features like arrow keys, promptWithPrefill, etc.
+#   - The CLI connects to localhost:8080 which is port-forwarded from
+#     the sprintly-app container — so it works transparently.
+#
+# Usage:
+#   First time:     docker-compose up -d --build
+#   Daily start:    docker-compose up -d
+#   Stop:           docker-compose down
+#   Stop + wipe DB: docker-compose down -v
+#   Rebuild after code change: docker-compose up -d --build sprintly-app
+#   View logs:      docker-compose logs -f sprintly-app
+# =============================================================================
+
+services:
+
+  # ── PostgreSQL Database ─────────────────────────────────────────────────────
+  sprintly-db:
+    image: postgres:16-alpine
+    # WHY postgres:16-alpine?
+    #   postgres:16 is the latest stable major version.
+    #   Alpine variant is ~80MB vs ~400MB for the Debian variant.
+    #   Production-grade: we use the official Postgres image, not a custom one.
+    container_name: sprintly-db
+
+    environment:
+      # These env vars are read by the postgres image on first startup
+      # to create the database and set the superuser password.
+      # Values come from .env file (never hardcoded here).
+      POSTGRES_DB:       ${POSTGRES_DB:-sprintly_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      # Expose DB to host machine so you can connect with pgAdmin, DBeaver, psql
+      # Format: "HOST_PORT:CONTAINER_PORT"
+      # Remove this in production if you don't want the DB reachable from outside
+      - "${DB_PORT:-5432}:5432"
+
+    volumes:
+      # Named volume: persists DB data across container restarts and
+      # "docker-compose down". Data is only wiped with "docker-compose down -v".
+      # WHY named volume over bind mount?
+      #   Named volumes are managed by Docker and stored in Docker's data directory.
+      #   Bind mounts (./data:/var/lib/postgresql/data) cause permission issues on
+      #   some systems (Mac, Windows) and are slower due to filesystem translation.
+      - sprintly-db-data:/var/lib/postgresql/data
+
+      # Mount the init SQL file into the postgres init directory.
+      # Postgres automatically runs any .sql files in /docker-entrypoint-initdb.d/
+      # on the FIRST startup (when the data directory is empty).
+      # On subsequent startups it skips this — data already exists.
+      # WHY not use Flyway for this?
+      #   Flyway runs migrations at app startup. The init.sql creates the tables.
+      #   For Docker, we let Postgres create the schema directly so the tables
+      #   exist before the app container even starts — cleaner startup sequence.
+      - ./sprintly-gateway/src/main/resources/db/migration/V1__init.sql:/docker-entrypoint-initdb.d/V1__init.sql:ro
+
+    healthcheck:
+      # pg_isready checks if Postgres is accepting connections.
+      # Docker uses this to determine when the DB is ready before starting
+      # the app service (depends_on with condition: service_healthy).
+      # Without this, the app might start before the DB is ready and crash.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sprintly_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    restart: unless-stopped
+    # unless-stopped: restart automatically if the container crashes or the
+    # Docker daemon restarts (e.g. after machine reboot). But don't restart
+    # if you manually stopped it with "docker-compose down".
+
+    networks:
+      - sprintly-network
+
+  # ── Spring Boot Application ─────────────────────────────────────────────────
+  sprintly-app:
+    build:
+      # context: the directory Docker sends to the daemon as the build context.
+      # "." means the current directory (where docker-compose.yml lives).
+      # All paths in Dockerfile are relative to this context.
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: sprintly-app
+    image: sprintly-app:latest
+    # Tagging the built image lets you reference it later:
+    #   docker run sprintly-app:latest
+    #   docker push yourregistry/sprintly-app:latest
+
+    depends_on:
+      sprintly-db:
+        # condition: service_healthy means this service only starts AFTER
+        # sprintly-db passes its healthcheck (pg_isready returns success).
+        # Without this, the app would start immediately and fail with
+        # "Connection refused" because Postgres isn't ready yet.
+        condition: service_healthy
+
+    environment:
+      # These override the values in application.yml at runtime.
+      # Spring Boot reads env vars and maps them to properties:
+      #   SPRING_DATASOURCE_URL → spring.datasource.url
+      #   SPRING_DATASOURCE_USERNAME → spring.datasource.username
+      # etc.
+
+      # WHY use the service name "sprintly-db" instead of "localhost"?
+      #   Inside Docker's network, containers talk to each other by service name.
+      #   "localhost" inside the app container refers to the app container itself,
+      #   not the DB container. Docker DNS resolves "sprintly-db" to the correct
+      #   container IP automatically.
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://sprintly-db:5432/${POSTGRES_DB:-sprintly_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # JWT secret: must be at least 32 characters (256 bits for HS256).
+      # Loaded from .env so it never appears in source control.
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Override the logging package name (your app uses com.sprintly now)
+      LOGGING_LEVEL_COM_SPRINTLY: INFO
+      # Set to DEBUG during development for verbose SQL/security logs:
+      # LOGGING_LEVEL_COM_SPRINTLY: DEBUG
+
+      # Spring profile: set to "prod" for production-specific config
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+
+    ports:
+      # Expose app to host machine so:
+      #   - Browser can reach Swagger UI at http://localhost:8080/swagger-ui.html
+      #   - CLI on host machine can connect to http://localhost:8080/api
+      - "${APP_PORT:-8080}:8080"
+
+    healthcheck:
+      # Check that the Spring Boot app is fully started and healthy.
+      # /actuator/health returns 200 when app + DB connection are both healthy.
+      # The app container's own healthcheck (in Dockerfile) also does this —
+      # docker-compose uses this one for depends_on chains from other services.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+      # start_period=90s because Spring Boot + all modules takes ~30-60s to start.
+      # Failures during start_period don't count toward retries.
+
+    restart: unless-stopped
+
+    networks:
+      - sprintly-network
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  sprintly-network:
+    # WHY a custom network instead of the default?
+    #   Docker creates a default network for each compose file, but:
+    #   1. Named network is explicit and self-documenting
+    #   2. Other docker-compose projects can't accidentally communicate with ours
+    #   3. You can inspect it: docker network inspect sprintly-network
+    driver: bridge
+
+# ── Volumes ────────────────────────────────────────────────────────────────────
+volumes:
+  sprintly-db-data:
+  # Docker manages this volume's lifecycle.
+  # Location: /var/lib/docker/volumes/sprintly_sprintly-db-data/_data
+  # List volumes: docker volume ls
+  # Inspect: docker volume inspect sprintly_sprintly-db-data
+  # Delete: docker volume rm sprintly_sprintly-db-data (only when stopped)

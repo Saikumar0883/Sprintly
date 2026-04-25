@@ -5,26 +5,52 @@ spring:
   application:
     name: taskflow
 
-  # ── Database ──────────────────────────────────────────────
+  # ── Database ─────────────────────────────────────────────────────────────────
+  #
+  # WHY ${ENV_VAR:default} syntax?
+  #   Spring Boot supports property substitution from environment variables.
+  #   The format is: ${ENV_VAR_NAME:default_value}
+  #
+  #   When running LOCALLY (mvn spring-boot:run):
+  #     The env vars are not set, so Spring uses the default values.
+  #     → connects to localhost:5432 (your local Postgres or docker-compose db)
+  #
+  #   When running IN DOCKER (docker-compose up):
+  #     docker-compose sets these env vars from your .env file.
+  #     → SPRING_DATASOURCE_URL overrides this entire property
+  #     → connects to sprintly-db:5432 (the DB container by service name)
+  #
+  #   This means ONE application.yml works for both local dev and Docker.
+  #   No separate application-docker.yml needed.
+  #
   datasource:
-    url: jdbc:postgresql://localhost:5432/sprintly_db
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sprintly_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 30000
+
   flyway:
     baseline-on-migrate: true
 
-# ── JWT Settings ──────────────────────────────────────────
+# ── JWT Settings ─────────────────────────────────────────────────────────────
+#
+# JWT_SECRET is loaded from:
+#   Local dev: the default value below (fine for development)
+#   Docker:    the JWT_SECRET value from your .env file
+#
+# NEVER use the default secret in production — generate a proper one:
+#   openssl rand -base64 64
+#
 jwt:
   secret: ${JWT_SECRET:taskflow-super-secret-key-change-in-production-must-be-256-bits}
   access-token-expiry-ms: 900000       # 15 minutes
   refresh-token-expiry-ms: 604800000   # 7 days
 
-# ── SpringDoc / Swagger ───────────────────────────────────
+# ── SpringDoc / Swagger ───────────────────────────────────────────────────────
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
@@ -35,6 +61,13 @@ springdoc:
     path: /v3/api-docs
   show-actuator: false
 
+# ── Actuator ─────────────────────────────────────────────────────────────────
+#
+# /actuator/health is used by:
+#   1. Docker healthcheck in Dockerfile — detects if the app is alive
+#   2. docker-compose healthcheck — decides when sprintly-app is ready
+#   3. Any load balancer or monitoring tool
+#
 management:
   endpoints:
     web:
@@ -42,11 +75,17 @@ management:
         include: health, info, metrics
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: always
+      # "always" so Docker healthcheck can read DB connection status.
+      # Change to "when-authorized" in production.
 
-# ── Logging ───────────────────────────────────────────────
+# ── Logging ──────────────────────────────────────────────────────────────────
+#
+# LOGGING_LEVEL_COM_SPRINTLY can be overridden via env var in docker-compose.
+# Set to DEBUG for verbose output, INFO for normal, WARN for quiet.
+#
 logging:
   level:
-    com.taskflow: DEBUG
-    org.springframework.security: INFO
+    com.sprintly: ${LOGGING_LEVEL_COM_SPRINTLY:INFO}
+    org.springframework.security: WARN
     org.hibernate.SQL: WARN

@@ -21,13 +21,13 @@ import java.io.IOException;
 
 /**
  * HTTP client for the Sprintly backend REST API.
- *
+ * <p>
  * Key behaviours:
- *   - isLoggedIn()  → checks local config file (no network call)
- *   - parseResponse() → reads body as String first (fixes MismatchedInputException)
- *   - 401 errors    → "Session expired. Run: refresh" (token expired)
- *   - 403 errors    → "Access denied." (wrong permissions, e.g. not assignee)
- *   - HTML body     → "Not authenticated. Run: login"
+ * - isLoggedIn()  → checks local config file (no network call)
+ * - parseResponse() → reads body as String first (fixes MismatchedInputException)
+ * - 401 errors    → "Session expired. Run: refresh" (token expired)
+ * - 403 errors    → "Access denied." (wrong permissions, e.g. not assignee)
+ * - HTML body     → "Not authenticated. Run: login"
  */
 public class SprintlyClient {
 
@@ -143,22 +143,22 @@ public class SprintlyClient {
 
     /**
      * Reads the HTTP response body as a String before parsing JSON.
-     *
+     * <p>
      * Why:
-     *   Passing InputStream directly to Jackson crashes with
-     *   MismatchedInputException when the body is empty (401/403/204).
-     *   Reading as String first lets us handle each case cleanly.
-     *
+     * Passing InputStream directly to Jackson crashes with
+     * MismatchedInputException when the body is empty (401/403/204).
+     * Reading as String first lets us handle each case cleanly.
+     * <p>
      * Error message improvements for fresh sessions:
-     *   401 → "Session expired. Run: refresh  (or logout + login)"
-     *          This is the most common case after a fresh terminal start —
-     *          the saved token is still in ~/.sprintly-cli.json but it has
-     *          expired. isLoggedIn() returns true (file exists) but the
-     *          backend rejects it. The user needs to run 'refresh'.
-     *
-     *   403 → "Access denied: [server message]"
-     *          This means the request reached a valid endpoint but the user
-     *          doesn't have permission (e.g. not the assignee of a task).
+     * 401 → "Session expired. Run: refresh  (or logout + login)"
+     * This is the most common case after a fresh terminal start —
+     * the saved token is still in ~/.sprintly-cli.json but it has
+     * expired. isLoggedIn() returns true (file exists) but the
+     * backend rejects it. The user needs to run 'refresh'.
+     * <p>
+     * 403 → "Access denied: [server message]"
+     * This means the request reached a valid endpoint but the user
+     * doesn't have permission (e.g. not the assignee of a task).
      */
     private <T> ApiResponse<T> parseResponse(CloseableHttpResponse response,
                                              TypeReference<ApiResponse<T>> typeReference)

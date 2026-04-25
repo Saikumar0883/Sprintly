@@ -1,0 +1,77 @@
+# =============================================================================
+# Sprintly — .dockerignore
+# =============================================================================
+#
+# WHY this file matters:
+#   When you run "docker build" or "docker-compose up --build", Docker first
+#   tars up the entire build context (the directory containing this file)
+#   and sends it to the Docker daemon. Without .dockerignore, it sends
+#   EVERYTHING — including target/ folders (compiled JARs, hundreds of MB),
+#   .git history, IDE files, logs.
+#
+#   This slows down every build significantly and can leak sensitive files
+#   into the build context. .dockerignore works exactly like .gitignore:
+#   listed patterns are excluded from the context sent to the daemon.
+#
+# Impact:
+#   Without .dockerignore: build context ~500MB+ (all target/ folders)
+#   With .dockerignore:    build context ~5MB  (only source files + poms)
+# =============================================================================
+
+# ── Compiled output ───────────────────────────────────────────────────────────
+# These are the biggest folders — exclude them completely.
+# Docker will compile fresh from source inside the builder stage.
+**/target/
+**/*.class
+**/*.jar
+**/*.war
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+# Git history can be large and is never needed in a container
+.git/
+.gitignore
+
+# ── IDE files ─────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# ── OS files ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Environment files ─────────────────────────────────────────────────────────
+# Never bake secrets into Docker images
+.env
+.env.local
+.env.production
+
+# ── Docker files themselves ───────────────────────────────────────────────────
+# Not needed inside the container
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+# Not needed at runtime
+README.md
+*.md
+docs/
+
+# ── Test reports ─────────────────────────────────────────────────────────────
+**/surefire-reports/
+**/failsafe-reports/
